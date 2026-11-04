@@ -111,6 +111,8 @@ async function sessionChanged() {
     return toast('Erro ao carregar o projeto: ' + e.message, 'err');
   }
   if (keep) setProject(keep); // não perde edições não salvas ao trocar de usuário
+  $('projName').textContent = '⌂ ' + state.project.name;
+  document.title = `${state.project.name} — JB IHM`;
   applyPermissions();
   reconnectWs();
   switchPage(page);

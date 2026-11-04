@@ -38,8 +38,9 @@ npm install
 npm start
 ```
 
-Abra `http://localhost:3000`. Para acessar de outro PC/tablet da rede, use `http://IP-DO-COMPUTADOR:3000`.
-O projeto de demonstração usa o simulador, então já funciona sem PLC.
+Abra `http://localhost:3000`: aparece a **lista de projetos**. Cada projeto abre no próprio endereço,
+por exemplo `http://IP-DO-COMPUTADOR:3000/estacao-1/`. Na primeira vez é criado o projeto "Estação 1",
+com o exemplo do simulador, então já funciona sem PLC.
 
 Variáveis de ambiente opcionais: `PORT` (padrão 3000), `HOST` (padrão 0.0.0.0), `DATA_DIR` (onde salvar o projeto).
 
@@ -50,6 +51,27 @@ Variáveis de ambiente opcionais: `PORT` (padrão 3000), `HOST` (padrão 0.0.0.0
 3. **Editor de Telas** → arraste objetos para a tela e escolha o tag de cada um no painel da direita.
 4. Clique em **Salvar** (Ctrl+S). A comunicação reinicia com a nova configuração.
 5. **Operação** → tela do operador.
+
+## Vários projetos (uma IHM por estação) e backup
+
+O mesmo servidor roda **vários projetos ao mesmo tempo**, cada um com as próprias telas, tags, PLCs
+(drivers e IPs), gateway, alarmes e histórico. Cada projeto tem um endereço tirado do nome:
+
+| Projeto | Endereço |
+|---|---|
+| Estação 1 | `http://IP:3000/estacao-1/` |
+| Estação 2 | `http://IP:3000/estacao-2/` |
+
+Na lista de projetos (`http://IP:3000/`):
+- **+ Novo projeto**: vazio ou a partir do exemplo. **Duplicar** copia um projeto pronto (confira os IPs dos PLCs da cópia).
+- **Renomear** muda o nome (o endereço continua o mesmo). **Excluir** move a pasta para `data/lixeira` (dá para recuperar).
+- **⬇ Backup do projeto**: baixa a configuração completa (`.json`). **⬇ Histórico (.db)**: baixa o banco de histórico.
+- **🕘 Versões salvas**: a cada "Salvar", a versão anterior é guardada automaticamente (as últimas 30) e pode ser restaurada.
+- **Importar projeto**: cria um projeto novo a partir de um backup.
+- **⬇ Backup geral / Restaurar backup geral** (administrador): todos os projetos num arquivo só.
+
+Usuários e níveis de acesso valem para todos os projetos (um login só). O registro de ações mostra em qual
+projeto cada ação aconteceu. Uma instalação antiga (um projeto só) é convertida sozinha na primeira vez.
 
 ## Login e níveis de acesso
 
@@ -66,7 +88,7 @@ No primeiro uso entre com **usuário `admin` e senha `admin`**. O sistema obriga
 - As permissões são verificadas no servidor, não só na tela.
 - Cada tag tem um "nível mínimo para escrever"; cada botão/chave/entrada pode exigir um nível maior.
 - Objetos bloqueados aparecem com 🔒; ao tocar, a IHM pede login.
-- Usuários ficam em `data/users.json` e o registro de ações no banco `data/historico.db` (fora do projeto exportado).
+- Usuários ficam em `data/users.json` e o registro de ações no banco `data/sistema.db` (fora dos projetos exportados).
 - Esqueceu a senha do admin? Pare o servidor e apague `data/users.json`: o usuário `admin`/`admin` é recriado
   (os outros usuários serão perdidos).
 
@@ -131,7 +153,7 @@ O manual de programação do DM858 está em [`docs/DM858_ProgrammingGuide_EN.pdf
 
 ## Histórico
 
-O histórico fica no arquivo `data/historico.db` (SQLite), que pode ser aberto com qualquer ferramenta SQLite
+O histórico de cada projeto fica em `data/projects/<endereço>/historico.db` (SQLite), que pode ser aberto com qualquer ferramenta SQLite
 (ex.: DB Browser for SQLite).
 
 - **O que registrar**: na aba Tags, marque a coluna "Histórico". A "banda morta" é a variação mínima para gravar
@@ -161,7 +183,8 @@ O histórico fica no arquivo `data/historico.db` (SQLite), que pode ser aberto c
 
 ```
 server/            servidor Node.js
-  index.js         HTTP + WebSocket
+  index.js         HTTP + WebSocket (lista de projetos e um endereço por projeto)
+  projects.js      projetos rodando ao mesmo tempo, criação, exclusão
   auth.js          usuários, sessões e registro de ações
   historian.js     histórico em banco SQLite
   navigator.js     troca de tela pelo PLC
@@ -174,7 +197,12 @@ public/            interface web (sem build)
   js/runtime.js    modo operação
   js/widgets.js    objetos de tela
   js/pages.js      Tags, PLCs e Alarmes
-data/              project.json (projeto), users.json (usuários), historico.db (histórico)
+  projects.html    lista de projetos (js/projects.js)
+data/
+  projects/<endereço>/  project.json, backups/ (versões), historico.db
+  users.json            usuários
+  sistema.db            registro de ações
+  lixeira/              projetos excluídos
 ```
 
 ## Próximos passos sugeridos

@@ -3,7 +3,6 @@ const fs = require('fs');
 const path = require('path');
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
-const FILE = path.join(DATA_DIR, 'project.json');
 const DEMO = path.join(__dirname, 'demo-project.json');
 
 function normalize(p) {
@@ -56,18 +55,48 @@ function normalize(p) {
   return out;
 }
 
-function load() {
-  const file = fs.existsSync(FILE) ? FILE : DEMO;
+const MAX_VERSIONS = 30;
+
+// Lê o projeto de uma pasta (data/projects/<endereço>/project.json).
+function load(dir) {
+  const file = path.join(dir, 'project.json');
   return normalize(JSON.parse(fs.readFileSync(file, 'utf8')));
 }
 
-function save(project) {
+// Salva o projeto. Antes de gravar, guarda a versão anterior em backups/ (as últimas 30).
+function save(dir, project, { keepVersion = true } = {}) {
   const p = normalize(project);
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  const tmp = FILE + '.tmp';
+  const file = path.join(dir, 'project.json');
+  fs.mkdirSync(dir, { recursive: true });
+  if (keepVersion && fs.existsSync(file)) {
+    const bdir = path.join(dir, 'backups');
+    fs.mkdirSync(bdir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
+    fs.copyFileSync(file, path.join(bdir, `projeto_${stamp}.json`));
+    const old = listVersions(dir).slice(MAX_VERSIONS);
+    for (const v of old) fs.unlinkSync(path.join(bdir, v.file));
+  }
+  const tmp = file + '.tmp';
   fs.writeFileSync(tmp, JSON.stringify(p, null, 2));
-  fs.renameSync(tmp, FILE);
+  fs.renameSync(tmp, file);
   return p;
 }
 
-module.exports = { load, save, normalize, FILE };
+// Versões salvas automaticamente, da mais nova para a mais antiga.
+function listVersions(dir) {
+  const bdir = path.join(dir, 'backups');
+  if (!fs.existsSync(bdir)) return [];
+  return fs.readdirSync(bdir).filter((f) => /^projeto_[\d-]+\.json$/.test(f)).map((f) => {
+    const st = fs.statSync(path.join(bdir, f));
+    return { file: f, size: st.size, ts: st.mtimeMs };
+  }).sort((a, b) => b.ts - a.ts || b.file.localeCompare(a.file));
+}
+
+function loadVersion(dir, file) {
+  if (!/^projeto_[\d-]+\.json$/.test(file)) throw new Error('Versão inválida');
+  return normalize(JSON.parse(fs.readFileSync(path.join(dir, 'backups', file), 'utf8')));
+}
+
+const demoProject = () => normalize(JSON.parse(fs.readFileSync(DEMO, 'utf8')));
+
+module.exports = { load, save, normalize, listVersions, loadVersion, demoProject, DATA_DIR };
