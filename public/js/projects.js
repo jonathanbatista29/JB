@@ -73,6 +73,7 @@ function card(p, eng, admin) {
       h('button', { class: 'btn small', onclick: () => (location.href = `api/projects/${p.slug}/export`) }, '⬇ Backup do projeto'),
       h('button', { class: 'btn small', onclick: () => (location.href = `api/projects/${p.slug}/history-db`) }, '⬇ Histórico (.db)'),
       h('button', { class: 'btn small', onclick: () => showVersions(p) }, '🕘 Versões salvas'),
+      h('button', { class: 'btn small', onclick: () => pickFile((data) => restoreInto(p, data)) }, '⬆ Restaurar backup aqui'),
       admin ? h('button', { class: 'btn small danger', onclick: () => deleteProject(p) }, 'Excluir') : '') : '');
 }
 
@@ -203,6 +204,20 @@ async function importProject(data) {
   try {
     const { slug } = await api('api/projects', { method: 'POST', body: { name: r.name, project } });
     toast(`Projeto importado em /${slug}/`, 'ok');
+    render();
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+// Abre um backup (.json) por cima de um projeto existente. A versão atual fica em "Versões salvas".
+async function restoreInto(p, data) {
+  const project = data?.jbihm === 'projeto' ? data.project : data;
+  if (!project || !Array.isArray(project.screens) || !Array.isArray(project.tags)) return toast('Arquivo não é um projeto da JB IHM', 'err');
+  if (p.mode === 'production') return toast('Projeto em produção: volte para o modo edição antes de restaurar', 'err');
+  const when = data?.exportedAt ? ` (backup de ${fmtDate(data.exportedAt)})` : '';
+  if (!(await confirmBox(`Substituir "${p.name}" pelo backup "${project.name || '?'}"${when}? A configuração atual é guardada em "Versões salvas" e pode ser recuperada. O endereço /${p.slug}/ continua o mesmo.`))) return;
+  try {
+    await api(`${p.slug}/api/project`, { method: 'PUT', body: { ...project, name: p.name } });
+    toast('Backup restaurado', 'ok');
     render();
   } catch (e) { toast(e.message, 'err'); }
 }

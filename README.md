@@ -33,6 +33,12 @@ em PC, tablet ou celular.
 
 Requisito: [Node.js](https://nodejs.org) 22.13 ou superior (o banco SQLite já vem embutido no Node).
 
+**Windows:** dê dois cliques em **`iniciar_ihm.bat`**. Ele confere o Node.js, instala as dependências
+na primeira vez (ou depois de atualizar o programa), inicia o servidor, mostra os endereços da rede e abre o
+navegador. Para parar, feche a janela. Para trocar a porta, edite a linha `set PORT=3000` do arquivo.
+
+**Outros sistemas (ou pelo terminal):**
+
 ```bash
 npm install
 npm start
@@ -68,6 +74,8 @@ Na lista de projetos (`http://IP:3000/`):
 - **⬇ Backup do projeto**: baixa a configuração completa (`.json`). **⬇ Histórico (.db)**: baixa o banco de histórico.
 - **🕘 Versões salvas**: a cada "Salvar", a versão anterior é guardada automaticamente (as últimas 30) e pode ser restaurada.
 - **Importar projeto**: cria um projeto novo a partir de um backup.
+- **⬆ Restaurar backup aqui**: abre um backup por cima de um projeto existente (no modo edição). A configuração
+  atual fica em "Versões salvas", então dá para desfazer.
 - **⬇ Backup geral / Restaurar backup geral** (administrador): todos os projetos num arquivo só.
 
 ### Modo edição e modo produção
