@@ -1,0 +1,3 @@
+*.bat text eol=crlf
+*.pdf binary
+*.db binary

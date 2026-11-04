@@ -1,0 +1,728 @@
+{
+  "name": "Projeto Demonstração",
+  "connections": [
+    {
+      "id": "sim1",
+      "name": "Simulador",
+      "model": "sim",
+      "driver": "simulator",
+      "pollMs": 300,
+      "enabled": true
+    }
+  ],
+  "tags": [
+    {
+      "name": "Motor_Liga",
+      "connection": "sim1",
+      "address": "motor1",
+      "type": "bool",
+      "access": "RW",
+      "description": "Comando do motor",
+      "log": true
+    },
+    {
+      "name": "Bomba_Liga",
+      "connection": "sim1",
+      "address": "bomba1",
+      "type": "bool",
+      "access": "RW",
+      "description": "Comando da bomba",
+      "log": true
+    },
+    {
+      "name": "Temperatura",
+      "connection": "sim1",
+      "address": "sine:20:30:60",
+      "type": "float32",
+      "access": "R",
+      "description": "Temperatura do forno (°C)",
+      "log": true,
+      "logDeadband": 0.1
+    },
+    {
+      "name": "Nivel_Tanque",
+      "connection": "sim1",
+      "address": "ramp:100:40",
+      "type": "float32",
+      "access": "R",
+      "description": "Nível do tanque (%)",
+      "log": true,
+      "logDeadband": 0.1
+    },
+    {
+      "name": "Pressao",
+      "connection": "sim1",
+      "address": "random:4:6",
+      "type": "float32",
+      "access": "R",
+      "description": "Pressão da linha (bar)",
+      "log": true,
+      "logDeadband": 0.1
+    },
+    {
+      "name": "Setpoint_Temp",
+      "connection": "sim1",
+      "address": "sp_temp",
+      "type": "float32",
+      "access": "RW",
+      "description": "Setpoint de temperatura",
+      "log": true,
+      "logDeadband": 0.1
+    },
+    {
+      "name": "Velocidade",
+      "connection": "sim1",
+      "address": "vel",
+      "type": "int16",
+      "access": "RW",
+      "description": "Velocidade (rpm)",
+      "log": true
+    },
+    {
+      "name": "Pisca",
+      "connection": "sim1",
+      "address": "square:2",
+      "type": "bool",
+      "access": "R",
+      "description": "Sinal pulsante"
+    },
+    {
+      "name": "Modo",
+      "connection": "sim1",
+      "address": "modo",
+      "type": "int16",
+      "access": "RW",
+      "description": "0=Manual 1=Automático 2=Manutenção"
+    },
+    {
+      "name": "Tela_Solicitada",
+      "connection": "sim1",
+      "address": "tela_req",
+      "type": "int16",
+      "access": "RW",
+      "description": "PLC escreve o nº da tela a abrir"
+    },
+    {
+      "name": "Tela_Atual",
+      "connection": "sim1",
+      "address": "tela_atual",
+      "type": "int16",
+      "access": "RW",
+      "description": "IHM escreve o nº da tela aberta"
+    },
+    {
+      "name": "Abrir_Tendencias",
+      "connection": "sim1",
+      "address": "abrir_tend",
+      "type": "bool",
+      "access": "RW",
+      "description": "Liga para abrir a tela Tendências"
+    }
+  ],
+  "alarms": [
+    {
+      "id": "al1",
+      "tag": "Temperatura",
+      "condition": ">",
+      "limit": 75,
+      "message": "Temperatura alta no forno",
+      "priority": "alta"
+    },
+    {
+      "id": "al2",
+      "tag": "Nivel_Tanque",
+      "condition": ">",
+      "limit": 90,
+      "message": "Nível do tanque muito alto",
+      "priority": "media"
+    },
+    {
+      "id": "al3",
+      "tag": "Pressao",
+      "condition": "<",
+      "limit": 4.1,
+      "message": "Pressão baixa na linha",
+      "priority": "baixa"
+    }
+  ],
+  "screens": [
+    {
+      "id": "tela1",
+      "name": "Principal",
+      "width": 1024,
+      "height": 600,
+      "bg": "#1e2530",
+      "widgets": [
+        {
+          "id": "w1",
+          "type": "rect",
+          "x": 0,
+          "y": 0,
+          "w": 1024,
+          "h": 60,
+          "props": {
+            "bg": "#14324f",
+            "border": "#14324f",
+            "borderWidth": 0,
+            "radius": 0
+          }
+        },
+        {
+          "id": "w2",
+          "type": "label",
+          "x": 20,
+          "y": 10,
+          "w": 500,
+          "h": 40,
+          "props": {
+            "text": "LINHA 1 - VISÃO GERAL",
+            "fontSize": 24,
+            "color": "#ffffff",
+            "bold": true,
+            "align": "left"
+          }
+        },
+        {
+          "id": "w3",
+          "type": "multistate",
+          "x": 760,
+          "y": 12,
+          "w": 240,
+          "h": 36,
+          "props": {
+            "tag": "Modo",
+            "states": "0=MANUAL:#d98c1f\n1=AUTOMÁTICO:#2e9e5b\n2=MANUTENÇÃO:#c0392b",
+            "fontSize": 16
+          }
+        },
+        {
+          "id": "w10",
+          "type": "rect",
+          "x": 20,
+          "y": 80,
+          "w": 300,
+          "h": 300,
+          "props": {
+            "bg": "#252e3b",
+            "border": "#3a4656",
+            "borderWidth": 1,
+            "radius": 8
+          }
+        },
+        {
+          "id": "w11",
+          "type": "label",
+          "x": 30,
+          "y": 88,
+          "w": 280,
+          "h": 28,
+          "props": {
+            "text": "Motor M1",
+            "fontSize": 18,
+            "color": "#cfd8e3",
+            "bold": true,
+            "align": "left"
+          }
+        },
+        {
+          "id": "w12",
+          "type": "symbol",
+          "x": 115,
+          "y": 125,
+          "w": 110,
+          "h": 110,
+          "props": {
+            "tag": "Motor_Liga",
+            "symbol": "motor",
+            "onColor": "#2ecc71",
+            "offColor": "#7f8c8d"
+          }
+        },
+        {
+          "id": "w13",
+          "type": "button",
+          "x": 40,
+          "y": 255,
+          "w": 120,
+          "h": 50,
+          "props": {
+            "text": "LIGAR",
+            "tag": "Motor_Liga",
+            "action": "set",
+            "bg": "#1f8a4c",
+            "color": "#ffffff",
+            "fontSize": 16
+          }
+        },
+        {
+          "id": "w14",
+          "type": "button",
+          "x": 180,
+          "y": 255,
+          "w": 120,
+          "h": 50,
+          "props": {
+            "text": "DESLIGAR",
+            "tag": "Motor_Liga",
+            "action": "reset",
+            "bg": "#b03a2e",
+            "color": "#ffffff",
+            "fontSize": 16,
+            "confirm": true
+          }
+        },
+        {
+          "id": "w15",
+          "type": "lamp",
+          "x": 40,
+          "y": 320,
+          "w": 260,
+          "h": 44,
+          "props": {
+            "tag": "Motor_Liga",
+            "text": "Em operação",
+            "onColor": "#2ecc71",
+            "offColor": "#3b4554"
+          }
+        },
+        {
+          "id": "w20",
+          "type": "rect",
+          "x": 340,
+          "y": 80,
+          "w": 330,
+          "h": 300,
+          "props": {
+            "bg": "#252e3b",
+            "border": "#3a4656",
+            "borderWidth": 1,
+            "radius": 8
+          }
+        },
+        {
+          "id": "w21",
+          "type": "label",
+          "x": 350,
+          "y": 88,
+          "w": 300,
+          "h": 28,
+          "props": {
+            "text": "Forno",
+            "fontSize": 18,
+            "color": "#cfd8e3",
+            "bold": true,
+            "align": "left"
+          }
+        },
+        {
+          "id": "w22",
+          "type": "gauge",
+          "x": 395,
+          "y": 120,
+          "w": 220,
+          "h": 160,
+          "props": {
+            "tag": "Temperatura",
+            "min": 0,
+            "max": 100,
+            "unit": "°C",
+            "decimals": 1,
+            "color": "#f39c12"
+          }
+        },
+        {
+          "id": "w23",
+          "type": "label",
+          "x": 355,
+          "y": 295,
+          "w": 140,
+          "h": 30,
+          "props": {
+            "text": "Setpoint:",
+            "fontSize": 16,
+            "color": "#cfd8e3",
+            "align": "left"
+          }
+        },
+        {
+          "id": "w24",
+          "type": "input",
+          "x": 500,
+          "y": 290,
+          "w": 150,
+          "h": 40,
+          "props": {
+            "tag": "Setpoint_Temp",
+            "min": 0,
+            "max": 100,
+            "decimals": 1,
+            "unit": "°C"
+          }
+        },
+        {
+          "id": "w25",
+          "type": "display",
+          "x": 355,
+          "y": 335,
+          "w": 295,
+          "h": 36,
+          "props": {
+            "tag": "Pressao",
+            "label": "Pressão",
+            "decimals": 2,
+            "unit": "bar",
+            "lo": 4.1,
+            "hi": 5.9
+          }
+        },
+        {
+          "id": "w30",
+          "type": "rect",
+          "x": 690,
+          "y": 80,
+          "w": 314,
+          "h": 300,
+          "props": {
+            "bg": "#252e3b",
+            "border": "#3a4656",
+            "borderWidth": 1,
+            "radius": 8
+          }
+        },
+        {
+          "id": "w31",
+          "type": "label",
+          "x": 700,
+          "y": 88,
+          "w": 290,
+          "h": 28,
+          "props": {
+            "text": "Tanque T1",
+            "fontSize": 18,
+            "color": "#cfd8e3",
+            "bold": true,
+            "align": "left"
+          }
+        },
+        {
+          "id": "w32",
+          "type": "tank",
+          "x": 710,
+          "y": 125,
+          "w": 120,
+          "h": 240,
+          "props": {
+            "tag": "Nivel_Tanque",
+            "min": 0,
+            "max": 100,
+            "unit": "%",
+            "color": "#3498db"
+          }
+        },
+        {
+          "id": "w33",
+          "type": "symbol",
+          "x": 860,
+          "y": 140,
+          "w": 90,
+          "h": 90,
+          "props": {
+            "tag": "Bomba_Liga",
+            "symbol": "pump",
+            "onColor": "#2ecc71",
+            "offColor": "#7f8c8d"
+          }
+        },
+        {
+          "id": "w34",
+          "type": "switch",
+          "x": 850,
+          "y": 250,
+          "w": 120,
+          "h": 44,
+          "props": {
+            "tag": "Bomba_Liga",
+            "onText": "LIGADA",
+            "offText": "DESLIG."
+          }
+        },
+        {
+          "id": "w40",
+          "type": "rect",
+          "x": 20,
+          "y": 400,
+          "w": 650,
+          "h": 180,
+          "props": {
+            "bg": "#252e3b",
+            "border": "#3a4656",
+            "borderWidth": 1,
+            "radius": 8
+          }
+        },
+        {
+          "id": "w41",
+          "type": "label",
+          "x": 30,
+          "y": 408,
+          "w": 300,
+          "h": 28,
+          "props": {
+            "text": "Velocidade do transportador",
+            "fontSize": 18,
+            "color": "#cfd8e3",
+            "bold": true,
+            "align": "left"
+          }
+        },
+        {
+          "id": "w42",
+          "type": "slider",
+          "x": 40,
+          "y": 455,
+          "w": 420,
+          "h": 40,
+          "props": {
+            "tag": "Velocidade",
+            "min": 0,
+            "max": 1800,
+            "step": 10
+          }
+        },
+        {
+          "id": "w43",
+          "type": "display",
+          "x": 480,
+          "y": 455,
+          "w": 170,
+          "h": 40,
+          "props": {
+            "tag": "Velocidade",
+            "label": "",
+            "decimals": 0,
+            "unit": "rpm"
+          }
+        },
+        {
+          "id": "w44",
+          "type": "bar",
+          "x": 40,
+          "y": 515,
+          "w": 610,
+          "h": 40,
+          "props": {
+            "tag": "Velocidade",
+            "min": 0,
+            "max": 1800,
+            "color": "#9b59b6",
+            "orientation": "horizontal"
+          }
+        },
+        {
+          "id": "w50",
+          "type": "navbtn",
+          "x": 690,
+          "y": 400,
+          "w": 314,
+          "h": 55,
+          "props": {
+            "ref": "nb2"
+          }
+        },
+        {
+          "id": "w51",
+          "type": "button",
+          "x": 690,
+          "y": 465,
+          "w": 150,
+          "h": 50,
+          "props": {
+            "text": "AUTO",
+            "tag": "Modo",
+            "action": "value",
+            "value": 1,
+            "bg": "#34495e",
+            "color": "#ffffff",
+            "fontSize": 15
+          }
+        },
+        {
+          "id": "w52",
+          "type": "button",
+          "x": 854,
+          "y": 465,
+          "w": 150,
+          "h": 50,
+          "props": {
+            "text": "MANUAL",
+            "tag": "Modo",
+            "action": "value",
+            "value": 0,
+            "bg": "#34495e",
+            "color": "#ffffff",
+            "fontSize": 15
+          }
+        },
+        {
+          "id": "w53",
+          "type": "lamp",
+          "x": 690,
+          "y": 530,
+          "w": 314,
+          "h": 44,
+          "props": {
+            "tag": "Pisca",
+            "text": "Sinal de vida do PLC",
+            "onColor": "#f1c40f",
+            "offColor": "#3b4554"
+          }
+        }
+      ],
+      "number": 1
+    },
+    {
+      "id": "tela2",
+      "name": "Tendências",
+      "width": 1024,
+      "height": 600,
+      "bg": "#1e2530",
+      "widgets": [
+        {
+          "id": "t1",
+          "type": "rect",
+          "x": 0,
+          "y": 0,
+          "w": 1024,
+          "h": 60,
+          "props": {
+            "bg": "#14324f",
+            "border": "#14324f",
+            "borderWidth": 0,
+            "radius": 0
+          }
+        },
+        {
+          "id": "t2",
+          "type": "label",
+          "x": 20,
+          "y": 10,
+          "w": 500,
+          "h": 40,
+          "props": {
+            "text": "TENDÊNCIAS",
+            "fontSize": 24,
+            "color": "#ffffff",
+            "bold": true,
+            "align": "left"
+          }
+        },
+        {
+          "id": "t3",
+          "type": "trend",
+          "x": 20,
+          "y": 80,
+          "w": 984,
+          "h": 420,
+          "props": {
+            "tags": "Temperatura, Nivel_Tanque, Setpoint_Temp",
+            "min": 0,
+            "max": 100,
+            "seconds": 60
+          }
+        },
+        {
+          "id": "t4",
+          "type": "button",
+          "x": 20,
+          "y": 520,
+          "w": 200,
+          "h": 55,
+          "props": {
+            "text": "◀ VOLTAR",
+            "action": "back",
+            "bg": "#2d6cdf",
+            "color": "#ffffff",
+            "fontSize": 18
+          }
+        },
+        {
+          "id": "t5",
+          "type": "display",
+          "x": 250,
+          "y": 525,
+          "w": 240,
+          "h": 45,
+          "props": {
+            "tag": "Temperatura",
+            "label": "Temp.",
+            "decimals": 1,
+            "unit": "°C",
+            "hi": 75
+          }
+        },
+        {
+          "id": "t6",
+          "type": "display",
+          "x": 510,
+          "y": 525,
+          "w": 240,
+          "h": 45,
+          "props": {
+            "tag": "Nivel_Tanque",
+            "label": "Nível",
+            "decimals": 1,
+            "unit": "%",
+            "hi": 90
+          }
+        },
+        {
+          "id": "t7",
+          "type": "navbtn",
+          "x": 784,
+          "y": 520,
+          "w": 220,
+          "h": 55,
+          "props": {
+            "ref": "nb1"
+          }
+        }
+      ],
+      "number": 2,
+      "openTag": "Abrir_Tendencias",
+      "resetOpenTag": true
+    }
+  ],
+  "historian": {
+    "retentionDays": 90,
+    "heartbeatSec": 60
+  },
+  "navigation": {
+    "requestTag": "Tela_Solicitada",
+    "resetRequest": true,
+    "currentTag": "Tela_Atual"
+  },
+  "navButtons": [
+    {
+      "id": "nb1",
+      "number": 1,
+      "name": "Principal",
+      "text": "PRINCIPAL",
+      "screen": "tela1",
+      "bg": "#2d6cdf",
+      "color": "#ffffff",
+      "fontSize": 18,
+      "level": ""
+    },
+    {
+      "id": "nb2",
+      "number": 2,
+      "name": "Tendências",
+      "text": "TENDÊNCIAS ▶",
+      "screen": "tela2",
+      "bg": "#2d6cdf",
+      "color": "#ffffff",
+      "fontSize": 18,
+      "level": ""
+    }
+  ]
+}
