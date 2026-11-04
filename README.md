@@ -12,6 +12,7 @@ em PC, tablet ou celular.
   texto por estado, barra gráfica, tanque, manômetro (gauge), motor/bomba/válvula/ventilador, gráfico de tendência.
 - **PLCs suportados**
   - Siemens **S7-1200, S7-1500, S7-300, S7-400** (protocolo S7, porta 102)
+  - Allen-Bradley **CompactLogix / ControlLogix** (EtherNet/IP, acesso direto pelo nome do tag)
   - **Modbus TCP**: Siemens LOGO! 8, Schneider M221/M241, WEG, Delta, Allen-Bradley Micro800, Mitsubishi FX5U, Altus Nexto, genérico
   - **Modbus RTU** (RS-485 serial)
   - **Simulador** para testar sem PLC
@@ -47,11 +48,15 @@ Variáveis de ambiente opcionais: `PORT` (padrão 3000), `HOST` (padrão 0.0.0.0
 | Driver | Exemplos |
 |---|---|
 | Siemens S7 | `DB1,X0.0` `DB1,INT2` `DB1,DINT4` `DB1,REAL8` `M0.0` `MW10` `MD20` `MR30` `I0.0` `Q0.1` `IW64` |
+| CompactLogix / ControlLogix | `Motor_Run` `Program:MainProgram.Nivel` `Receita[3]` `Maquina.Velocidade` `Status.5` (bit de DINT) |
 | Modbus (base 0) | `C0` coil · `DI0` entrada · `HR0` holding · `IR0` input · `HR0.3` bit 3 · também `40001`, `00001` |
 | Simulador | `sine:amp:periodo:offset` `ramp:max:periodo` `random:min:max` `square:periodo` ou qualquer nome (memória) |
 
 **Siemens S7-1200/1500**: no TIA Portal habilite *Permit access with PUT/GET* e desmarque
 *Optimized block access* nos DBs que a IHM vai ler.
+
+**CompactLogix**: informe o IP e slot 0. Os tags são lidos pelo nome, sem mapeamento. A opção
+"Ler lista de tags ao conectar" é necessária para UDTs e STRING.
 
 ## Estrutura
 
@@ -59,7 +64,7 @@ Variáveis de ambiente opcionais: `PORT` (padrão 3000), `HOST` (padrão 0.0.0.0
 server/            servidor Node.js
   index.js         HTTP + WebSocket
   tagManager.js    leitura cíclica, escrita e alarmes
-  drivers/         simulator, modbus (TCP/RTU), s7
+  drivers/         simulator, modbus (TCP/RTU), s7, logix (CompactLogix)
   models.js        modelos de PLC pré-configurados
 public/            interface web (sem build)
   js/editor.js     editor de telas
@@ -73,5 +78,5 @@ data/project.json  projeto salvo (criado ao salvar)
 
 - Login com níveis de acesso (operador / manutenção / engenharia)
 - Histórico de tendências em banco de dados
-- Drivers Omron FINS, Allen-Bradley EtherNet/IP, OPC UA
+- Drivers Omron FINS, OPC UA
 - Receitas e relatórios

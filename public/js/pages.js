@@ -6,6 +6,7 @@ const TYPES = [['bool', 'BOOL (bit)'], ['int16', 'INT (16 bits)'], ['uint16', 'W
 const ADDRESS_HELP = {
   simulator: 'Simulador: sine:amplitude:período:offset · ramp:max:período · random:min:max · square:período · ou qualquer nome (memória).',
   s7: 'Siemens S7: DB1,X0.0 (bit) · DB1,INT2 · DB1,DINT4 · DB1,REAL8 · M0.0 · MW10 · MD20 · MR30 (real) · I0.0 · Q0.1 · IW64 · QW64',
+  logix: 'CompactLogix / ControlLogix: nome do tag no Studio 5000 · Motor_Run · Program:MainProgram.Nivel · Receita[3] · Maquina.Velocidade · Status.5 (bit de DINT). Tipos: BOOL, INT, DINT, REAL, STRING.',
   'modbus-tcp': 'Modbus (base 0): C0 coil · DI0 entrada digital · HR0 holding register · IR0 input register · HR0.3 bit 3 do registrador. Também aceita 00001/10001/30001/40001.',
   'modbus-rtu': 'Modbus (base 0): C0 coil · DI0 entrada digital · HR0 holding register · IR0 input register · HR0.3 bit 3 do registrador. Também aceita 00001/10001/30001/40001.',
 };
@@ -69,7 +70,7 @@ export function renderTags() {
       h('td', {}, h('select', { onchange: set('connection') },
         p.connections.map((c) => h('option', { value: c.id, selected: c.id === t.connection }, c.name)),
         !conn ? h('option', { value: t.connection, selected: true }, '(sem conexão)') : null)),
-      h('td', {}, h('input', { type: 'text', value: t.address, placeholder: conn?.driver === 's7' ? 'DB1,REAL0' : conn?.driver === 'simulator' ? 'memoria1' : 'HR0', onchange: set('address') })),
+      h('td', {}, h('input', { type: 'text', value: t.address, placeholder: conn?.driver === 's7' ? 'DB1,REAL0' : conn?.driver === 'logix' ? 'Motor_Run' : conn?.driver === 'simulator' ? 'memoria1' : 'HR0', onchange: set('address') })),
       h('td', {}, h('select', { onchange: set('type') }, TYPES.map(([v, txt]) => h('option', { value: v, selected: v === t.type }, txt)))),
       h('td', {}, h('select', { onchange: set('access') }, h('option', { value: 'RW', selected: t.access !== 'R' }, 'Leitura/Escrita'), h('option', { value: 'R', selected: t.access === 'R' }, 'Somente leitura'))),
       h('td', {}, h('input', { type: 'text', value: t.description || '', onchange: set('description') })),
@@ -171,6 +172,9 @@ export function renderConnections() {
 
     const fields = [];
     if (c.driver === 's7') fields.push(txtF('host', 'IP do PLC', '192.168.0.1'), numF('port', 'Porta', '102'), numF('rack', 'Rack', '0'), numF('slot', 'Slot', '1'), numF('timeout', 'Timeout (ms)', '3000'));
+    if (c.driver === 'logix') fields.push(txtF('host', 'IP do PLC', '192.168.1.10'), numF('slot', 'Slot da CPU', '0'), numF('timeout', 'Timeout (ms)', '5000'),
+      h('label', { class: 'check full', title: 'Necessário para ler UDTs e STRING. Desmarque se o controlador não responder à conexão.' },
+        h('input', { type: 'checkbox', checked: c.setup !== false, onchange: set('setup') }), 'Ler lista de tags do PLC ao conectar (UDT/STRING)'));
     if (c.driver === 'modbus-tcp') fields.push(txtF('host', 'IP do PLC', '192.168.0.1'), numF('port', 'Porta', '502'), numF('unitId', 'Unit ID / Escravo', '1'), numF('timeout', 'Timeout (ms)', '2000'));
     if (c.driver === 'modbus-rtu') {
       fields.push(txtF('serialPort', 'Porta serial', '/dev/ttyUSB0 ou COM3'),

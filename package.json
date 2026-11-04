@@ -12,6 +12,7 @@
     "express": "^5.1.0",
     "modbus-serial": "^8.0.25",
     "nodes7": "^0.3.18",
+    "st-ethernet-ip": "^2.7.5",
     "ws": "^8.18.0"
   }
 }

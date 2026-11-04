@@ -5,6 +5,7 @@ const DRIVERS = {
   'modbus-tcp': () => require('./modbus'),
   'modbus-rtu': () => require('./modbus'),
   s7: () => require('./s7'),
+  logix: () => require('./logix'),
 };
 
 function createDriver(cfg) {
