@@ -8,6 +8,7 @@ export const state = {
   dirty: false,
   wsOnline: false,
   gateway: [],  // situação de cada ligação do gateway
+  mode: { mode: 'edit' }, // modo do projeto: 'edit' (edição) ou 'production' (produção)
   me: { user: null, level: -1, guestLevel: 0, idleMinutes: 10, levels: [] },
 };
 
@@ -15,6 +16,9 @@ export const state = {
 export const LV = { NONE: -1, VIEW: 0, OPERATOR: 1, MAINT: 2, ENG: 3, ADMIN: 4 };
 export const LEVEL_NAMES = { '-1': 'Sem acesso', 0: 'Visualizador', 1: 'Operador', 2: 'Manutenção', 3: 'Engenharia', 4: 'Administrador' };
 export const can = (min) => state.me.level >= min;
+export const isProduction = () => state.mode.mode === 'production';
+// Pode alterar a configuração: Engenharia e projeto em modo edição.
+export const canEdit = () => can(LV.ENG) && !isProduction();
 
 export const bus = new EventTarget();
 export const emit = (name, detail) => bus.dispatchEvent(new CustomEvent(name, { detail }));
@@ -60,6 +64,7 @@ export async function loadProject() {
 }
 
 export async function saveProject() {
+  state.savingUntil = Date.now() + 5000; // o aviso "projectSaved" deste salvamento é ignorado aqui
   await api('api/project', { method: 'PUT', body: state.project });
   state.dirty = false;
   emit('dirty', false);
@@ -128,6 +133,13 @@ export function connectWs() {
       case 'gateway':
         state.gateway = msg.bridges;
         emit('gateway', msg.bridges);
+        break;
+      case 'mode':
+        state.mode = { mode: msg.mode, since: msg.since, by: msg.by, startScreen: msg.startScreen };
+        emit('mode', state.mode);
+        break;
+      case 'projectSaved':
+        if (!(state.savingUntil > Date.now())) emit('projectSaved');
         break;
       case 'navigate':
         emit('plcNavigate', msg);

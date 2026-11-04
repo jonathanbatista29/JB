@@ -1,5 +1,5 @@
 // Gateway: liga tags de conexões diferentes (ex.: multímetro -> PLC e PLC -> multímetro).
-import { state, on, h, markDirty, uid, confirmBox, can, LV, openModal, closeModal, toast } from './state.js';
+import { state, on, h, markDirty, uid, confirmBox, can, canEdit, isProduction, LV, openModal, closeModal, toast } from './state.js';
 
 let root, statusCells = new Map(), srcCells = new Map();
 
@@ -45,7 +45,7 @@ export function renderGateway() {
   p.gateway ||= [];
   statusCells = new Map();
   srcCells = new Map();
-  const eng = can(LV.ENG);
+  const eng = canEdit();
   const connName = (id) => p.connections.find((c) => c.id === id)?.name || '?';
 
   // Lista de tags agrupada por conexão (+ status das conexões como origem).
@@ -128,7 +128,7 @@ export function renderGateway() {
       h('br'), '• "Status da conexão" manda 1/0 para o PLC saber se o multímetro está online.',
       h('br'), '• "Só quando": copia apenas quando outro tag tem um valor. Ex.: medida ➜ memória de tensão só quando a função = 1. ',
       'O botão "+ Medida por função" cria isso para todas as funções de uma vez.'),
-    can(LV.ENG) ? '' : h('div', { class: 'note' }, 'Modo leitura: só Engenharia altera o gateway.'),
+    eng ? '' : h('div', { class: 'note' }, isProduction() ? 'Projeto em produção: gateway funcionando, configuração travada.' : 'Modo leitura: só Engenharia altera o gateway.'),
     h('div', { class: 'table-wrap' }, h('table', { class: 'grid gw-table' },
       h('thead', {}, h('tr', {}, ['Ativo', 'Nome', 'Origem', 'Agora', '', 'Destino', 'Modo', 'Opções', 'Situação', ''].map((c) => h('th', {}, c)))),
       tbody)),

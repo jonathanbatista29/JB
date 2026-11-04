@@ -51,7 +51,8 @@ function card(p, eng, admin) {
   const url = urlOf(p.slug);
   const online = p.connections.filter((c) => c.state === 'online').length;
   return h('div', { class: 'card proj-card' },
-    h('h3', {}, p.name),
+    h('div', { class: 'card-head' }, h('h3', { style: { marginRight: 'auto' } }, p.name),
+      h('span', { class: 'mode-badge ' + (p.mode === 'production' ? 'prod' : 'edit') }, p.mode === 'production' ? '● PRODUÇÃO' : '✎ EDIÇÃO')),
     h('div', { class: 'url' }, url),
     h('div', { class: 'stats' },
       h('span', {}, `${p.screens} tela(s)`), h('span', {}, `${p.tags} tag(s)`),
@@ -63,6 +64,9 @@ function card(p, eng, admin) {
     h('div', { class: 'actions' },
       h('a', { class: 'btn primary', href: `/${p.slug}/` }, '▶ Abrir'),
       h('button', { class: 'btn small', onclick: () => copy(url) }, 'Copiar endereço'),
+      eng ? (p.mode === 'production'
+        ? h('button', { class: 'btn small', onclick: () => setMode(p, 'edit') }, '✎ Editar')
+        : h('button', { class: 'btn small run-btn', onclick: () => setMode(p, 'production') }, '▶ Produção')) : '',
       eng ? h('button', { class: 'btn small', onclick: () => renameProject(p) }, 'Renomear') : '',
       eng ? h('button', { class: 'btn small', onclick: () => duplicateProject(p) }, 'Duplicar') : ''),
     eng ? h('div', { class: 'actions' },
@@ -70,6 +74,17 @@ function card(p, eng, admin) {
       h('button', { class: 'btn small', onclick: () => (location.href = `api/projects/${p.slug}/history-db`) }, '⬇ Histórico (.db)'),
       h('button', { class: 'btn small', onclick: () => showVersions(p) }, '🕘 Versões salvas'),
       admin ? h('button', { class: 'btn small danger', onclick: () => deleteProject(p) }, 'Excluir') : '') : '');
+}
+
+async function setMode(p, mode) {
+  const msg = mode === 'production'
+    ? `⚠ Colocar "${p.name}" em produção? A edição fica travada para todos e os painéis abertos vão para a tela inicial (${p.startScreen}). Para escolher outra tela inicial, abra o projeto.`
+    : `Voltar "${p.name}" para o modo edição? A operação continua, mas o projeto poderá ser alterado.`;
+  if (!(await confirmBox(msg))) return;
+  try {
+    await api(`api/projects/${p.slug}/mode`, { method: 'POST', body: { mode } });
+    render();
+  } catch (e) { toast(e.message, 'err'); }
 }
 
 async function copy(text) {

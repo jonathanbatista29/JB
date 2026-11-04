@@ -1,10 +1,10 @@
 // Páginas de configuração: Tags, Conexões (PLCs) e Alarmes.
-import { state, on, h, markDirty, uid, confirmBox, toast, writeTag, keypad, ackAlarm, can, LV, LEVEL_NAMES } from './state.js';
+import { state, on, h, markDirty, uid, confirmBox, toast, writeTag, keypad, ackAlarm, can, canEdit, isProduction, LV, LEVEL_NAMES } from './state.js';
 
 // Abaixo de Engenharia as páginas de configuração ficam só para leitura.
 // Elementos com a classe "keep" (filtros, escrita de teste, reconhecer) continuam ativos.
 function readOnly(root) {
-  if (can(LV.ENG)) return;
+  if (canEdit()) return;
   root.querySelectorAll('input, select, textarea, button').forEach((el) => { if (!el.closest('.keep')) el.disabled = true; });
   root.querySelectorAll('.eng-only').forEach((el) => el.remove());
 }
@@ -128,7 +128,9 @@ export function renderTags() {
   renderRows();
   tagsRoot.replaceChildren(
     h('div', { class: 'head' }, h('h2', {}, `Tags (${p.tags.length})`), filterIn, connSel, h('button', { class: 'btn primary eng-only', onclick: addTag }, '+ Novo tag')),
-    can(LV.ENG) ? '' : h('div', { class: 'note' }, 'Modo leitura: só Engenharia altera tags. Você pode ver os valores e escrever valores de teste (✎).'),
+    canEdit() ? '' : h('div', { class: 'note' }, isProduction()
+      ? 'Projeto em produção: configuração travada. Volte para o modo edição para alterar os tags.'
+      : 'Modo leitura: só Engenharia altera tags. Você pode ver os valores e escrever valores de teste (✎).'),
     ...usedDrivers.map((d) => h('div', { class: 'note' }, ADDRESS_HELP[d] || '')),
     h('div', { class: 'table-wrap' }, h('table', { class: 'grid' },
       h('thead', {}, h('tr', {}, ['Nome', 'Conexão', 'Endereço', 'Tipo', 'Acesso', 'Escrita mín.', 'Descrição', 'Histórico', 'Valor', ''].map((c) => h('th', {}, c)))),
@@ -239,7 +241,9 @@ export function renderConnections() {
 
   connRoot.replaceChildren(
     h('div', { class: 'head' }, h('h2', {}, 'PLCs / Conexões'), h('button', { class: 'btn primary eng-only', onclick: add }, '+ Novo PLC')),
-    can(LV.ENG) ? '' : h('div', { class: 'note' }, 'Modo leitura: só Engenharia altera as conexões.'),
+    canEdit() ? '' : h('div', { class: 'note' }, isProduction()
+      ? 'Projeto em produção: configuração travada. Volte para o modo edição para alterar as conexões.'
+      : 'Modo leitura: só Engenharia altera as conexões.'),
     h('p', { class: 'hint' }, 'Escolha o modelo, preencha o IP e clique em "Salvar" no topo para conectar. O status atualiza em tempo real.'),
     h('div', { class: 'cards' }, p.connections.map(card)));
   readOnly(connRoot);

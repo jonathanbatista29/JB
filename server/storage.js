@@ -35,6 +35,8 @@ function normalize(p) {
   }
   let nb = 1;
   for (const b of out.navButtons) if (b.number == null) { while (usedB.has(nb)) nb++; b.number = nb; usedB.add(nb); }
+  // Tela inicial (abre ao colocar o projeto em produção e ao abrir um painel em produção).
+  if (!out.screens.some((s) => s.id === out.startScreen)) out.startScreen = out.screens[0].id;
   // Gateway: ligações entre tags de conexões diferentes.
   if (!Array.isArray(out.gateway)) out.gateway = [];
   out.gateway = out.gateway.filter((b) => b && b.id).map((b) => ({

@@ -1,5 +1,5 @@
 // Página de histórico: gráfico de tendências do banco de dados, histórico de alarmes e configuração.
-import { state, h, api, toast, markDirty, can, findTag, LV } from './state.js';
+import { state, h, api, toast, markDirty, can, canEdit, findTag, LV } from './state.js';
 
 const COLORS = ['#2d8cff', '#f39c12', '#2ecc71', '#e74c3c', '#9b59b6', '#1abc9c', '#e67e22', '#ecf0f1'];
 const PERIODS = [['900000', 'Últimos 15 min'], ['3600000', 'Última 1 hora'], ['28800000', 'Últimas 8 horas'], ['86400000', 'Últimas 24 horas'],
@@ -31,7 +31,7 @@ function period() {
 export function renderHistory() {
   if (!state.project) return;
   const tabs = h('div', { class: 'subtabs' },
-    [['trend', '📈 Tendências'], ['alarms', '🔔 Alarmes'], ...(can(LV.ENG) ? [['config', '⚙ Configuração']] : [])].map(([id, txt]) =>
+    [['trend', '📈 Tendências'], ['alarms', '🔔 Alarmes'], ...(canEdit() ? [['config', '⚙ Configuração']] : [])].map(([id, txt]) =>
       h('button', { class: view === id ? 'active' : '', onclick: () => { view = id; renderHistory(); } }, txt)));
   const body = h('div', { class: 'hist-body' });
   root.replaceChildren(h('div', { class: 'head' }, h('h2', {}, 'Histórico'), tabs), body);

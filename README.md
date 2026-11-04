@@ -70,6 +70,19 @@ Na lista de projetos (`http://IP:3000/`):
 - **Importar projeto**: cria um projeto novo a partir de um backup.
 - **⬇ Backup geral / Restaurar backup geral** (administrador): todos os projetos num arquivo só.
 
+### Modo edição e modo produção
+
+Cada projeto tem um modo, mostrado no topo (✎ EDIÇÃO / ● PRODUÇÃO):
+
+- **▶ Produção** (Engenharia): abre um alerta para confirmar e escolher a **tela inicial**. Ao confirmar,
+  alterações pendentes são salvas, a edição de telas, tags, PLCs, gateway e alarmes fica **travada para todos**
+  (o servidor também recusa salvar) e todos os painéis abertos vão para a tela inicial.
+  Em produção, um painel aberto sempre começa na tela inicial.
+- **✎ Editar**: volta para o modo edição. A operação e a comunicação com os PLCs continuam; os painéis
+  mostram o selo "EDIÇÃO".
+- A tela inicial também pode ser marcada no Editor (propriedades da tela → "★ Tela inicial").
+- O modo pode ser trocado na lista de projetos e fica registrado no registro de ações.
+
 Usuários e níveis de acesso valem para todos os projetos (um login só). O registro de ações mostra em qual
 projeto cada ação aconteceu. Uma instalação antiga (um projeto só) é convertida sozinha na primeira vez.
 
@@ -199,7 +212,7 @@ public/            interface web (sem build)
   js/pages.js      Tags, PLCs e Alarmes
   projects.html    lista de projetos (js/projects.js)
 data/
-  projects/<endereço>/  project.json, backups/ (versões), historico.db
+  projects/<endereço>/  project.json, backups/ (versões), historico.db, estado.json (modo)
   users.json            usuários
   sistema.db            registro de ações
   lixeira/              projetos excluídos

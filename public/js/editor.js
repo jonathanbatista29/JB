@@ -73,7 +73,8 @@ function renderAll() {
   if (!state.project) return;
   const s = scr();
   screenId = s.id;
-  screenSel.replaceChildren(...state.project.screens.map((x) => h('option', { value: x.id, selected: x.id === s.id }, x.name)));
+  const start = state.project.startScreen || state.project.screens[0]?.id;
+  screenSel.replaceChildren(...state.project.screens.map((x) => h('option', { value: x.id, selected: x.id === s.id }, (x.id === start ? '★ ' : '') + x.name)));
   renderNavPalette();
   renderCanvas();
   renderProps();
@@ -621,7 +622,11 @@ function renderScreenProps() {
       field('Largura (px)', h('input', { type: 'number', value: s.width, onchange: change('width', (v) => Math.max(200, Number(v) || 1024)) })),
       field('Altura (px)', h('input', { type: 'number', value: s.height, onchange: change('height', (v) => Math.max(150, Number(v) || 600)) })),
       field('Cor de fundo', h('input', { type: 'color', value: /^#[0-9a-f]{6}$/i.test(s.bg) ? s.bg : '#1e2530', onchange: change('bg') }), true),
-      h('label', { class: 'check full' }, h('input', { type: 'checkbox', checked: s.showInNav !== false, onchange: change('showInNav') }), 'Mostrar no menu de telas')),
+      h('label', { class: 'check full' }, h('input', { type: 'checkbox', checked: s.showInNav !== false, onchange: change('showInNav') }), 'Mostrar no menu de telas'),
+      h('label', { class: 'check full', title: 'Abre ao colocar o projeto em produção e quando um painel é aberto em produção' },
+        h('input', { type: 'checkbox', checked: (state.project.startScreen || state.project.screens[0]?.id) === s.id,
+          onchange: (e) => { state.project.startScreen = e.target.checked ? s.id : state.project.screens[0].id; markDirty(); renderAll(); } }),
+        '★ Tela inicial (abre ao colocar em produção)')),
     ...callButtonProps(s),
     ...navProps(s),
     h('h4', {}, 'Como usar'),

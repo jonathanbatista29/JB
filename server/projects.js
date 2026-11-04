@@ -42,7 +42,17 @@ class ProjectRuntime {
     this.nav.on('warning', (m) => console.warn(`[${slug}] Troca de tela:`, m));
     this.gw.on('state', (bridges) => this.broadcast({ type: 'gateway', bridges }));
 
+    this.mode = loadMode(this.dir);
     this.ready = this.tm.load(this.project).then(() => this.gw.configure(this.project));
+  }
+
+  // Modo do projeto: "edit" (pode ser alterado) ou "production" (só operação, configuração travada).
+  setMode(mode, user) {
+    if (!['edit', 'production'].includes(mode)) throw new Error('Modo inválido');
+    this.mode = { mode, since: Date.now(), by: user || '' };
+    fs.writeFileSync(path.join(this.dir, 'estado.json'), JSON.stringify(this.mode, null, 2));
+    this.broadcast({ type: 'mode', ...this.mode, startScreen: this.project.startScreen });
+    return this.mode;
   }
 
   // Salva um projeto novo e reinicia a comunicação com a configuração nova.
@@ -52,6 +62,8 @@ class ProjectRuntime {
     this.nav.configure(this.project);
     await this.tm.load(this.project);
     this.gw.configure(this.project);
+    // Avisa os painéis abertos para recarregarem telas e configuração.
+    this.broadcast({ type: 'projectSaved', ts: Date.now() });
     return this.project;
   }
 
@@ -63,7 +75,8 @@ class ProjectRuntime {
   summary() {
     const p = this.project;
     return {
-      slug: this.slug, name: p.name, screens: p.screens.length, tags: p.tags.length,
+      slug: this.slug, name: p.name, screens: p.screens.length, tags: p.tags.length, mode: this.mode.mode, modeSince: this.mode.since, modeBy: this.mode.by,
+      startScreen: p.screens.find((s) => s.id === p.startScreen)?.name || p.screens[0]?.name,
       connections: p.connections.map((c) => ({ id: c.id, name: c.name, state: this.tm.status[c.id]?.state || 'idle', error: this.tm.status[c.id]?.error || null })),
       activeAlarms: Object.keys(this.tm.active).length, clients: this.clients.size,
     };
@@ -162,6 +175,14 @@ class ProjectManager {
   async stopAll() {
     await Promise.all([...this.runtimes.values()].map((r) => r.stop()));
   }
+}
+
+function loadMode(dir) {
+  try {
+    const m = JSON.parse(fs.readFileSync(path.join(dir, 'estado.json'), 'utf8'));
+    if (m.mode === 'production' || m.mode === 'edit') return m;
+  } catch {}
+  return { mode: 'edit', since: Date.now(), by: '' };
 }
 
 function emptyProject() {

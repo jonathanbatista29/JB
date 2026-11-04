@@ -117,6 +117,7 @@ root.post('/projects', need(LV.ENG), wrap((req) => {
   return { ok: true, slug: rt.slug };
 }));
 
+root.post('/projects/:slug/mode', need(LV.ENG), wrap((req) => setMode(rtOf(req.params.slug), req.body.mode, req.who)));
 root.put('/projects/:slug/name', need(LV.ENG), wrap(async (req) => {
   const rt = rtOf(req.params.slug);
   const name = String(req.body.name || '').trim();
@@ -152,7 +153,7 @@ root.get('/projects/:slug/history-db', need(LV.ENG), wrap(async (req, res) => {
 
 // Versões salvas automaticamente a cada "Salvar".
 root.get('/projects/:slug/versions', need(LV.ENG), wrap((req) => storage.listVersions(rtOf(req.params.slug).dir)));
-root.post('/projects/:slug/versions/:file/restore', need(LV.ENG), wrap(async (req) => {
+root.post('/projects/:slug/versions/:file/restore', need(LV.ENG), blockInProduction, wrap(async (req) => {
   const rt = rtOf(req.params.slug);
   const p = storage.loadVersion(rt.dir, req.params.file);
   await rt.apply(p);
@@ -202,12 +203,30 @@ proj.use(session);
 authRoutes(proj);
 
 proj.get('/project', need(LV.VIEW), (req, res) => res.json(req.rt.project));
-proj.put('/project', need(LV.ENG), wrap(async (req) => {
+proj.get('/mode', need(LV.VIEW), (req, res) => res.json({ ...req.rt.mode, startScreen: req.rt.project.startScreen }));
+proj.post('/mode', need(LV.ENG), wrap((req) => setMode(req.rt, req.body.mode, req.who)));
+proj.put('/project', need(LV.ENG), blockInProduction, wrap(async (req) => {
   const p = await req.rt.apply(req.body);
   auth.log(req.who, 'Salvou o projeto', `/${req.rt.slug}/: ${p.screens.length} tela(s), ${p.tags.length} tag(s)`);
 }));
 proj.get('/values', need(LV.VIEW), (req, res) => res.json(req.rt.tm.values));
 proj.post('/write', need(LV.OPERATOR), wrap((req) => doWrite(req.rt, req.level, req.who, req.body.tag, req.body.value)));
+
+// Em produção a configuração do projeto fica travada (volte para o modo edição para alterar).
+function blockInProduction(req, res, next) {
+  const rt = req.rt || pm.get(req.params.slug);
+  if (rt?.mode.mode === 'production') {
+    return res.status(409).json({ ok: false, error: 'Projeto em produção: volte para o modo edição para alterar' });
+  }
+  next();
+}
+
+function setMode(rt, mode, who) {
+  const m = rt.setMode(mode, who);
+  const start = rt.project.screens.find((s) => s.id === rt.project.startScreen)?.name;
+  auth.log(who, mode === 'production' ? 'Colocou em produção' : 'Voltou para edição', `/${rt.slug}/${mode === 'production' ? ' (tela inicial: ' + start + ')' : ''}`);
+  return { ok: true, ...m };
+}
 
 // Histórico do projeto
 function range(req, span = 60 * 60 * 1000) {
@@ -295,6 +314,7 @@ function onConnection(ws, req, rt) {
 
   ws.send(JSON.stringify({ type: 'snapshot', values: rt.tm.values, status: rt.tm.status, ...rt.tm.alarmState() }));
   ws.send(JSON.stringify({ type: 'gateway', bridges: rt.gw.state() }));
+  ws.send(JSON.stringify({ type: 'mode', ...rt.mode, startScreen: rt.project.startScreen }));
   ws.on('message', async (raw) => {
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
