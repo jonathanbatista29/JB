@@ -154,7 +154,7 @@ table.grid td.val { font-variant-numeric: tabular-nums; font-weight: 600; color:
 .card .card-head input { font-weight: 700; font-size: 15px; }
 .status-line { font-size: 12px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
 .status-line .err { color: #ff8a80; }
-.note { background: #1d2a3a; border-left: 3px solid var(--accent); padding: 8px 10px; font-size: 12px; color: #b9c8da; border-radius: 4px; line-height: 1.4; }
+.note { overflow-wrap: anywhere; background: #1d2a3a; border-left: 3px solid var(--accent); padding: 8px 10px; font-size: 12px; color: #b9c8da; border-radius: 4px; line-height: 1.4; }
 .prio-alta { color: #ff6b5e; font-weight: 700; }
 .prio-media { color: #f5b041; font-weight: 700; }
 .prio-baixa { color: #5dade2; font-weight: 700; }
@@ -237,3 +237,14 @@ input[type=datetime-local] { background: var(--bg); border: 1px solid var(--line
 .inline-edit { position: absolute; z-index: 10000; user-select: text; padding: 4px 6px; margin: 0; resize: none; line-height: 1.15; font-weight: 700;
   background: #0d1117f0; color: #fff; border: 2px solid var(--accent) !important; border-radius: 6px; box-shadow: 0 6px 20px rgba(0,0,0,.5); }
 .inline-hint { position: absolute; z-index: 10000; font-size: 11px; color: #fff; background: #000c; padding: 2px 6px; border-radius: 4px; white-space: nowrap; pointer-events: none; }
+
+/* ---------- Gateway ---------- */
+.gw-table td { vertical-align: top; }
+.gw-table select { min-width: 180px; }
+.gw-table small { display: block; margin-top: 2px; }
+.gw-arrow { font-size: 20px; color: var(--accent); text-align: center; }
+.gw-opts { display: flex; gap: 6px; align-items: flex-end; flex-wrap: wrap; min-width: 170px; }
+.gw-opts input[type=number], .gw-opts input[type=text] { width: 80px; }
+.gw-status { min-width: 160px; font-size: 12px; }
+.ok-txt { color: var(--ok); }
+.err-txt { color: #ff8a80; }

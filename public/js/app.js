@@ -5,12 +5,13 @@ import { initEditor, refreshEditor } from './editor.js';
 import { initTags, initConnections, initAlarms, renderTags, renderConnections, renderAlarms } from './pages.js';
 import { initUsers, renderUsers } from './users.js';
 import { initHistory, renderHistory } from './history.js';
+import { initGateway, renderGateway } from './gateway.js';
 import { initSession, showLogin, renderUserButton, forceChangePassword } from './session.js';
 
 const $ = (id) => document.getElementById(id);
 
 // Nível mínimo para ver cada aba.
-const PAGE_LEVEL = { runtime: LV.VIEW, alarms: LV.VIEW, history: LV.VIEW, tags: LV.MAINT, connections: LV.MAINT, editor: LV.ENG, users: LV.ADMIN };
+const PAGE_LEVEL = { runtime: LV.VIEW, alarms: LV.VIEW, history: LV.VIEW, tags: LV.MAINT, connections: LV.MAINT, gateway: LV.MAINT, editor: LV.ENG, users: LV.ADMIN };
 let page = 'runtime';
 
 function switchPage(p) {
@@ -26,6 +27,7 @@ function switchPage(p) {
   if (p === 'alarms') renderAlarms();
   if (p === 'users') renderUsers();
   if (p === 'history') renderHistory();
+  if (p === 'gateway') renderGateway();
 }
 
 function applyPermissions() {
@@ -122,6 +124,7 @@ async function main() {
   initAlarms($('page-alarms'));
   initUsers($('page-users'));
   initHistory($('page-history'));
+  initGateway($('page-gateway'));
   initSession({ changed: sessionChanged });
 
   $('tabs').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) switchPage(b.dataset.page); });

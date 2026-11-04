@@ -32,6 +32,11 @@ module.exports = [
     notes: 'Ative a função Modbus/TCP no GX Works3.' },
   { id: 'altus-nexto', vendor: 'Altus', name: 'Nexto / Hadron (Modbus TCP)', driver: 'modbus-tcp', defaults: { port: 502, unitId: 1 }, notes: '' },
 
+  { id: 'rigol-dm858', vendor: 'Rigol', name: 'Multímetro DM858 / DM858E (SCPI por LAN)', driver: 'scpi', defaults: { port: 5555, timeout: 3000, pollMs: 1000 },
+    notes: 'Ligue o multímetro na rede (Utility → I/O → LAN) e anote o IP. A porta de socket SCPI costuma ser 5555 — confira no menu de rede ou no manual de programação. ' +
+      'Endereços: READ? (medida atual) · MEAS:VOLT:DC? · *IDN? (STRING) · FUNC? | CONF:{1=VOLT:DC;2=VOLT:AC;3=CURR:DC;4=CURR:AC;5=RES;6=FREQ;7=CAP} (função por número).' },
+  { id: 'scpi-tcp', vendor: 'Genérico', name: 'Instrumento SCPI (TCP)', driver: 'scpi', defaults: { port: 5025, timeout: 3000, pollMs: 1000 },
+    notes: 'Keysight/Siglent usam a porta 5025; Rigol costuma usar 5555. Endereço = comando SCPI de consulta (termina com ?).' },
   { id: 'modbus-tcp', vendor: 'Genérico', name: 'Modbus TCP', driver: 'modbus-tcp', defaults: { port: 502, unitId: 1 }, notes: '' },
   { id: 'modbus-rtu', vendor: 'Genérico', name: 'Modbus RTU (serial RS-485)', driver: 'modbus-rtu', defaults: { baudRate: 9600, parity: 'none', dataBits: 8, stopBits: 1, unitId: 1 }, notes: '' },
 ];

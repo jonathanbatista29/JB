@@ -36,6 +36,15 @@ function normalize(p) {
   }
   let nb = 1;
   for (const b of out.navButtons) if (b.number == null) { while (usedB.has(nb)) nb++; b.number = nb; usedB.add(nb); }
+  // Gateway: ligações entre tags de conexões diferentes.
+  if (!Array.isArray(out.gateway)) out.gateway = [];
+  out.gateway = out.gateway.filter((b) => b && b.id).map((b) => ({
+    id: String(b.id), name: String(b.name || ''), enabled: b.enabled !== false,
+    source: String(b.source || ''), target: String(b.target || ''),
+    mode: b.mode === 'pulse' ? 'pulse' : 'change',
+    gain: b.gain === '' || b.gain == null ? 1 : Number(b.gain), offset: Number(b.offset) || 0,
+    value: b.value ?? '', resetSource: Boolean(b.resetSource),
+  }));
   const nav = out.navigation && typeof out.navigation === 'object' ? out.navigation : {};
   out.navigation = { requestTag: String(nav.requestTag || ''), resetRequest: Boolean(nav.resetRequest), currentTag: String(nav.currentTag || '') };
   const names = new Set();

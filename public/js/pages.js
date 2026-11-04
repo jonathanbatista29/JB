@@ -14,6 +14,7 @@ const TYPES = [['bool', 'BOOL (bit)'], ['int16', 'INT (16 bits)'], ['uint16', 'W
 const ADDRESS_HELP = {
   simulator: 'Simulador: sine:amplitude:período:offset · ramp:max:período · random:min:max · square:período · ou qualquer nome (memória).',
   s7: 'Siemens S7: DB1,X0.0 (bit) · DB1,INT2 · DB1,DINT4 · DB1,REAL8 · M0.0 · MW10 · MD20 · MR30 (real) · I0.0 · Q0.1 · IW64 · QW64',
+  scpi: 'Multímetro / SCPI: comando de consulta · READ? (medida atual) · MEAS:VOLT:DC? · *IDN? (STRING) · leitura e escrita: FUNC? | CONF:{1=VOLT:DC;2=VOLT:AC} · só comando: | *RST (BOOL, envia ao ligar).',
   logix: 'CompactLogix / ControlLogix: nome do tag no Studio 5000 · Motor_Run · Program:MainProgram.Nivel · Receita[3] · Maquina.Velocidade · Status.5 (bit de DINT). Tipos: BOOL, INT, DINT, REAL, STRING.',
   'modbus-tcp': 'Modbus (base 0): C0 coil · DI0 entrada digital · HR0 holding register · IR0 input register · HR0.3 bit 3 do registrador. Também aceita 00001/10001/30001/40001.',
   'modbus-rtu': 'Modbus (base 0): C0 coil · DI0 entrada digital · HR0 holding register · IR0 input register · HR0.3 bit 3 do registrador. Também aceita 00001/10001/30001/40001.',
@@ -81,7 +82,7 @@ export function renderTags() {
       h('td', {}, h('select', { onchange: set('connection') },
         p.connections.map((c) => h('option', { value: c.id, selected: c.id === t.connection }, c.name)),
         !conn ? h('option', { value: t.connection, selected: true }, '(sem conexão)') : null)),
-      h('td', {}, h('input', { type: 'text', value: t.address, placeholder: conn?.driver === 's7' ? 'DB1,REAL0' : conn?.driver === 'logix' ? 'Motor_Run' : conn?.driver === 'simulator' ? 'memoria1' : 'HR0', onchange: set('address') })),
+      h('td', {}, h('input', { type: 'text', value: t.address, placeholder: conn?.driver === 's7' ? 'DB1,REAL0' : conn?.driver === 'logix' ? 'Motor_Run' : conn?.driver === 'scpi' ? 'READ?' : conn?.driver === 'simulator' ? 'memoria1' : 'HR0', onchange: set('address') })),
       h('td', {}, h('select', { onchange: set('type') }, TYPES.map(([v, txt]) => h('option', { value: v, selected: v === t.type }, txt)))),
       h('td', {}, h('select', { onchange: set('access') }, h('option', { value: 'RW', selected: t.access !== 'R' }, 'Leitura/Escrita'), h('option', { value: 'R', selected: t.access === 'R' }, 'Somente leitura'))),
       h('td', {}, h('select', { title: 'Nível mínimo para escrever neste tag', onchange: (e) => { t.writeLevel = Number(e.target.value); markDirty(); } },
@@ -193,6 +194,7 @@ export function renderConnections() {
 
     const fields = [];
     if (c.driver === 's7') fields.push(txtF('host', 'IP do PLC', '192.168.0.1'), numF('port', 'Porta', '102'), numF('rack', 'Rack', '0'), numF('slot', 'Slot', '1'), numF('timeout', 'Timeout (ms)', '3000'));
+    if (c.driver === 'scpi') fields.push(txtF('host', 'IP do instrumento', '192.168.1.50'), numF('port', 'Porta', '5555'), numF('timeout', 'Timeout (ms)', '3000'));
     if (c.driver === 'logix') fields.push(txtF('host', 'IP do PLC', '192.168.1.10'), numF('slot', 'Slot da CPU', '0'), numF('timeout', 'Timeout (ms)', '5000'),
       h('label', { class: 'check full', title: 'Necessário para ler UDTs e STRING. Desmarque se o controlador não responder à conexão.' },
         h('input', { type: 'checkbox', checked: c.setup !== false, onchange: set('setup') }), 'Ler lista de tags do PLC ao conectar (UDT/STRING)'));
@@ -217,6 +219,7 @@ export function renderConnections() {
       h('label', { class: 'field' }, 'Modelo do PLC', modelSel),
       model?.notes ? h('div', { class: 'note' }, model.notes) : null,
       h('div', { class: 'prop-grid' }, ...fields, numF('pollMs', 'Ciclo de leitura (ms)', '500')),
+      c.driver === 'scpi' ? h('button', { class: 'btn small eng-only', onclick: () => createDmmTags(c) }, '+ Criar tags do multímetro') : '',
       h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
         h('span', { class: 'hint', style: { marginRight: 'auto' } }, `${nTags} tag(s)`),
         h('button', { class: 'btn small danger eng-only', onclick: async () => {
@@ -241,6 +244,29 @@ export function renderConnections() {
     h('div', { class: 'cards' }, p.connections.map(card)));
   readOnly(connRoot);
   updateConnStatus();
+}
+
+// Tags prontos para um multímetro SCPI (medida, função por número, reset e identificação).
+function createDmmTags(c) {
+  const p = state.project;
+  const base = c.name.replace(/\W+/g, '_').replace(/^_|_$/g, '') || 'DMM';
+  const list = [
+    { suffix: 'Medida', address: 'READ?', type: 'float32', access: 'R', description: 'Medida atual do multímetro' },
+    { suffix: 'Funcao', address: 'FUNC? | CONF:{1=VOLT:DC;2=VOLT:AC;3=CURR:DC;4=CURR:AC;5=RES;6=FREQ;7=CAP}', type: 'int16', access: 'RW',
+      description: '1=VDC 2=VAC 3=IDC 4=IAC 5=Ohm 6=Freq 7=Cap' },
+    { suffix: 'Reset', address: '| *RST', type: 'bool', access: 'RW', description: 'Liga = envia *RST' },
+    { suffix: 'IDN', address: '*IDN?', type: 'string', access: 'R', description: 'Identificação do instrumento' },
+  ];
+  let n = 0;
+  for (const t of list) {
+    const name = `${base}_${t.suffix}`;
+    if (p.tags.some((x) => x.name === name)) continue;
+    p.tags.push({ name, connection: c.id, address: t.address, type: t.type, access: t.access, description: t.description });
+    n++;
+  }
+  markDirty();
+  toast(n ? `${n} tag(s) criados. Confira os comandos no manual do instrumento e clique em Salvar.` : 'Os tags já existem', n ? 'ok' : '');
+  renderConnections();
 }
 
 // =================== ALARMES ===================

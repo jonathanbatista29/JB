@@ -9,6 +9,7 @@ const auth = require('./auth');
 const { TagManager } = require('./tagManager');
 const { Historian } = require('./historian');
 const { Navigator } = require('./navigator');
+const { Gateway } = require('./gateway');
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -31,6 +32,10 @@ tm.on('values', (v) => hist.onValues(v));
 const nav = new Navigator(tm);
 nav.configure(project);
 tm.on('values', (v) => nav.onValues(v));
+const gw = new Gateway(tm);
+gw.configure(project);
+tm.on('values', (v) => gw.onValues(v));
+tm.on('status', (s) => gw.onStatus(s));
 tm.on('alarmEvent', (e) => hist.addAlarm(e));
 tm.load(project);
 
@@ -83,6 +88,7 @@ app.put('/api/project', need(LV.ENG), wrap(async (req) => {
   hist.configure(project);
   nav.configure(project);
   await tm.load(project);
+  gw.configure(project);
   auth.log(req.who, 'Salvou o projeto', `${project.screens.length} tela(s), ${project.tags.length} tag(s)`);
 }));
 app.get('/api/models', need(LV.VIEW), (req, res) => res.json(models));
@@ -170,6 +176,7 @@ tm.on('values', (values) => broadcast({ type: 'values', values }));
 tm.on('status', (status) => broadcast({ type: 'status', status }));
 tm.on('alarms', () => broadcast({ type: 'alarms', ...tm.alarmState() }));
 nav.on('navigate', (e) => broadcast({ type: 'navigate', ...e }));
+gw.on('state', (bridges) => broadcast({ type: 'gateway', bridges }));
 nav.on('warning', (msg) => console.warn('Troca de tela:', msg));
 
 wss.on('connection', (ws, req) => {
@@ -181,6 +188,7 @@ wss.on('connection', (ws, req) => {
   if (ws.level < LV.VIEW) return ws.close(4001, 'login necessário');
 
   ws.send(JSON.stringify({ type: 'snapshot', values: tm.values, status: tm.status, ...tm.alarmState() }));
+  ws.send(JSON.stringify({ type: 'gateway', bridges: gw.state() }));
   ws.on('message', async (raw) => {
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }

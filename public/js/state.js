@@ -7,6 +7,7 @@ export const state = {
   alarms: { active: [], history: [] },
   dirty: false,
   wsOnline: false,
+  gateway: [],  // situação de cada ligação do gateway
   me: { user: null, level: -1, guestLevel: 0, idleMinutes: 10, levels: [] },
 };
 
@@ -123,6 +124,10 @@ export function connectWs() {
       case 'alarms':
         state.alarms = { active: msg.active, history: msg.history };
         emit('alarms', state.alarms);
+        break;
+      case 'gateway':
+        state.gateway = msg.bridges;
+        emit('gateway', msg.bridges);
         break;
       case 'navigate':
         emit('plcNavigate', msg);

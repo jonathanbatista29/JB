@@ -17,6 +17,7 @@ em PC, tablet ou celular.
   - Allen-Bradley **CompactLogix / ControlLogix** (EtherNet/IP, acesso direto pelo nome do tag)
   - **Modbus TCP**: Siemens LOGO! 8, Schneider M221/M241, WEG, Delta, Allen-Bradley Micro800, Mitsubishi FX5U, Altus Nexto, genérico
   - **Modbus RTU** (RS-485 serial)
+  - **Multímetro Rigol DM858 / DM858E** e outros instrumentos **SCPI por rede (TCP)**
   - **Simulador** para testar sem PLC
 - **Tags** (variáveis): BOOL, INT, WORD, DINT, DWORD, REAL, STRING, com valor ao vivo e escrita de teste.
 - **Alarmes**: condições por tag, prioridade, faixa de alarme no rodapé, reconhecimento e histórico.
@@ -24,6 +25,7 @@ em PC, tablet ou celular.
   inatividade, nível mínimo por objeto de tela e por tag, e registro de ações (quem fez o quê e quando).
 - **Histórico em banco de dados (SQLite)**: valores dos tags, eventos de alarme e registro de ações,
   com gráfico por período, zoom, resumo (mín./média/máx.) e exportação CSV.
+- **Gateway**: copia valores entre equipamentos diferentes (ex.: multímetro ➜ PLC e PLC ➜ multímetro).
 - Leitura otimizada (agrupa endereços Modbus em blocos), reconexão automática.
 - Exportar/importar projeto em JSON.
 
@@ -87,6 +89,34 @@ Uma tela pode ser aberta de quatro jeitos:
 
 O projeto de demonstração já vem configurado com os tags `Tela_Solicitada`, `Tela_Atual` e `Abrir_Tendencias`.
 
+## Multímetro (SCPI) e Gateway
+
+**Ligar o multímetro Rigol DM858/DM858E:**
+1. No multímetro, configure a rede (Utility → I/O → LAN) e anote o IP.
+2. Na aba PLCs, "+ Novo PLC", modelo **Multímetro DM858 / DM858E (SCPI por LAN)**, informe o IP.
+   A porta padrão é 5555 — confira no menu de rede ou no manual de programação do multímetro.
+3. Clique em **"+ Criar tags do multímetro"** e em Salvar.
+
+**Endereços SCPI** (o endereço do tag é o próprio comando):
+
+| Endereço | O que faz |
+|---|---|
+| `READ?` | Lê a medida atual (REAL) |
+| `MEAS:VOLT:DC?` | Configura e mede (mais lento) |
+| `*IDN?` | Identificação (STRING) |
+| `FUNC? \| CONF:{1=VOLT:DC;2=VOLT:AC;3=CURR:DC}` | Função por número: o PLC escreve 1, 2, 3... |
+| `\| *RST` | Só comando (BOOL): envia `*RST` quando liga |
+| `consulta? \| comando {v}` | Lê com a consulta e escreve trocando `{v}` pelo valor |
+
+Valores de sobrecarga (OL, 9,9E37) aparecem como qualidade ruim.
+
+**Gateway** (aba 🔀 Gateway): cada ligação copia o valor de um tag de origem para um tag de destino.
+- Multímetro ➜ PLC: `DMM_Medida` ➜ REAL no PLC (ou INT com ganho 1000 para mV).
+- PLC ➜ multímetro: INT do PLC com o número da função ➜ `DMM_Funcao`.
+- Comando ao ligar (pulso): bit do PLC ➜ `DMM_Reset`, com opção de desligar o bit depois.
+- Status da conexão: manda 1/0 para o PLC saber se o multímetro está online.
+- Quando um equipamento reconecta, o último valor é reenviado.
+
 ## Histórico
 
 O histórico fica no arquivo `data/historico.db` (SQLite), que pode ser aberto com qualquer ferramenta SQLite
@@ -123,8 +153,9 @@ server/            servidor Node.js
   auth.js          usuários, sessões e registro de ações
   historian.js     histórico em banco SQLite
   navigator.js     troca de tela pelo PLC
+  gateway.js       cópia de valores entre equipamentos
   tagManager.js    leitura cíclica, escrita e alarmes
-  drivers/         simulator, modbus (TCP/RTU), s7, logix (CompactLogix)
+  drivers/         simulator, modbus (TCP/RTU), s7, logix (CompactLogix), scpi (multímetro)
   models.js        modelos de PLC pré-configurados
 public/            interface web (sem build)
   js/editor.js     editor de telas
