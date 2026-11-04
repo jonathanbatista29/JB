@@ -10,10 +10,21 @@ const { coerce } = require('../util');
 //   *IDN?                         texto (use tipo STRING)
 //   leitura? | comando {v}        lê com a consulta e escreve com o comando ({v} = valor)
 //   | *RST                        só escrita (BOOL: o comando é enviado quando o valor é ligado)
-//   FUNC? | CONF:{1=VOLT:DC;2=VOLT:AC;3=CURR:DC}
+//   FUNC? | CONF:{1=VOLT:DC;2=VOLT:AC;3=CURR:DC}   (comandos conferidos no DM858 Programming Guide)
 //                                 tabela de valores: o PLC escreve 1, 2, 3... e o comando recebe o texto;
 //                                 na leitura o texto devolvido vira o número.
 const OVERLOAD = 9.9e37; // valor que os multímetros devolvem em sobrecarga (OL)
+
+// Compara nomes de função SCPI em forma longa ou curta: "VOLTage:DC", "VOLT:DC" e "VOLT" são a mesma função.
+// (O DM858 responde FUNC? com "VOLT" para tensão DC e "CURR" para corrente DC.)
+const SHORT = { VOLTAGE: 'VOLT', CURRENT: 'CURR', RESISTANCE: 'RES', FRESISTANCE: 'FRES', FREQUENCY: 'FREQ', CAPACITANCE: 'CAP',
+  CONTINUITY: 'CONT', DIODE: 'DIOD', PERIOD: 'PER', TEMPERATURE: 'TEMP' };
+function funcKey(s) {
+  const segs = String(s).trim().replace(/^"|"$/g, '').split(/\s/)[0].toUpperCase().split(':').filter(Boolean)
+    .map((x) => SHORT[x] || (x.length > 4 ? x.slice(0, 4) : x));
+  if (segs.length > 1 && segs[segs.length - 1] === 'DC') segs.pop();
+  return segs.join(':');
+}
 
 function parseAddress(raw) {
   const s = String(raw || '').trim();
@@ -42,7 +53,7 @@ class ScpiDriver {
     if (!cfg.host) return Promise.reject(new Error('Informe o IP do instrumento'));
     const timeout = Number(cfg.timeout) || 3000;
     return new Promise((resolve, reject) => {
-      const sock = net.createConnection({ host: cfg.host, port: Number(cfg.port) || 5555 });
+      const sock = net.createConnection({ host: cfg.host, port: Number(cfg.port) || 5025 });
       const fail = (e) => { sock.destroy(); reject(new Error(`Falha ao conectar: ${e.message || e}`)); };
       const timer = setTimeout(() => fail(new Error('tempo esgotado')), timeout);
       sock.once('error', fail);
@@ -134,13 +145,13 @@ class ScpiDriver {
   parse(resp, tag, map) {
     const txt = String(resp).trim().replace(/^"(.*)"$/, '$1');
     if (map) {
-      const up = txt.toUpperCase();
-      const hit = map.find(([, t]) => t.toUpperCase() === up) || map.find(([, t]) => t.toUpperCase().startsWith(up) || up.startsWith(t.toUpperCase()));
+      const key = funcKey(txt);
+      const hit = map.find(([, t]) => funcKey(t) === key);
       return hit ? hit[0] : 0;
     }
     if (tag.type === 'string') return txt;
     if (tag.type === 'bool') return /^(1|ON|TRUE)$/i.test(txt) || (Number.isFinite(parseFloat(txt)) && parseFloat(txt) !== 0);
-    const n = parseFloat(txt);
+    const n = parseFloat(txt); // com várias amostras o READ? devolve "v1,v2,...": usa a primeira
     if (!Number.isFinite(n)) throw new Error(`Resposta não numérica: ${txt.slice(0, 40)}`);
     if (Math.abs(n) >= OVERLOAD) return undefined;
     return tag.type === 'float32' ? n : Math.round(n);
@@ -173,3 +184,4 @@ class ScpiDriver {
 
 module.exports = ScpiDriver;
 module.exports.parseAddress = parseAddress;
+module.exports.funcKey = funcKey;

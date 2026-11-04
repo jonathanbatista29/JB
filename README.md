@@ -92,10 +92,16 @@ O projeto de demonstração já vem configurado com os tags `Tela_Solicitada`, `
 ## Multímetro (SCPI) e Gateway
 
 **Ligar o multímetro Rigol DM858/DM858E:**
-1. No multímetro, configure a rede (Utility → I/O → LAN) e anote o IP.
+1. No multímetro, configure a rede (Utility → IO) e anote o IP.
 2. Na aba PLCs, "+ Novo PLC", modelo **Multímetro DM858 / DM858E (SCPI por LAN)**, informe o IP.
-   A porta padrão é 5555 — confira no menu de rede ou no manual de programação do multímetro.
+   Porta de socket SCPI: **5025** (conforme o *DM858 Series Programming Guide*).
 3. Clique em **"+ Criar tags do multímetro"** e em Salvar.
+
+O tag de função usa o número: 1 = tensão DC, 2 = tensão AC, 3 = corrente DC, 4 = corrente AC,
+5 = resistência (2 fios), 6 = frequência, 7 = capacitância, 8 = resistência 4 fios, 9 = período,
+10 = continuidade, 11 = diodo, 12 = temperatura. O PLC escreve o número para trocar a função
+(comando `CONF:...`) e lê o número da função atual (consulta `FUNC?`, que o DM858 responde em forma
+curta, ex.: `"VOLT"` para tensão DC).
 
 **Endereços SCPI** (o endereço do tag é o próprio comando):
 

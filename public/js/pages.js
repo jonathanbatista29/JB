@@ -194,7 +194,7 @@ export function renderConnections() {
 
     const fields = [];
     if (c.driver === 's7') fields.push(txtF('host', 'IP do PLC', '192.168.0.1'), numF('port', 'Porta', '102'), numF('rack', 'Rack', '0'), numF('slot', 'Slot', '1'), numF('timeout', 'Timeout (ms)', '3000'));
-    if (c.driver === 'scpi') fields.push(txtF('host', 'IP do instrumento', '192.168.1.50'), numF('port', 'Porta', '5555'), numF('timeout', 'Timeout (ms)', '3000'));
+    if (c.driver === 'scpi') fields.push(txtF('host', 'IP do instrumento', '192.168.1.50'), numF('port', 'Porta', '5025'), numF('timeout', 'Timeout (ms)', '3000'));
     if (c.driver === 'logix') fields.push(txtF('host', 'IP do PLC', '192.168.1.10'), numF('slot', 'Slot da CPU', '0'), numF('timeout', 'Timeout (ms)', '5000'),
       h('label', { class: 'check full', title: 'Necessário para ler UDTs e STRING. Desmarque se o controlador não responder à conexão.' },
         h('input', { type: 'checkbox', checked: c.setup !== false, onchange: set('setup') }), 'Ler lista de tags do PLC ao conectar (UDT/STRING)'));
@@ -252,8 +252,8 @@ function createDmmTags(c) {
   const base = c.name.replace(/\W+/g, '_').replace(/^_|_$/g, '') || 'DMM';
   const list = [
     { suffix: 'Medida', address: 'READ?', type: 'float32', access: 'R', description: 'Medida atual do multímetro' },
-    { suffix: 'Funcao', address: 'FUNC? | CONF:{1=VOLT:DC;2=VOLT:AC;3=CURR:DC;4=CURR:AC;5=RES;6=FREQ;7=CAP}', type: 'int16', access: 'RW',
-      description: '1=VDC 2=VAC 3=IDC 4=IAC 5=Ohm 6=Freq 7=Cap' },
+    { suffix: 'Funcao', address: 'FUNC? | CONF:{1=VOLT:DC;2=VOLT:AC;3=CURR:DC;4=CURR:AC;5=RES;6=FREQ;7=CAP;8=FRES;9=PER;10=CONT;11=DIOD;12=TEMP}', type: 'int16', access: 'RW',
+      description: '1=VDC 2=VAC 3=IDC 4=IAC 5=Ohm 6=Freq 7=Cap 8=Ohm4fios 9=Período 10=Contin. 11=Diodo 12=Temp' },
     { suffix: 'Reset', address: '| *RST', type: 'bool', access: 'RW', description: 'Liga = envia *RST' },
     { suffix: 'IDN', address: '*IDN?', type: 'string', access: 'R', description: 'Identificação do instrumento' },
   ];
