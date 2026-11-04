@@ -212,16 +212,34 @@ O manual de programação do DM858 está em [`docs/DM858_ProgrammingGuide_EN.pdf
 
 ## Histórico
 
-O histórico de cada projeto fica em `data/projects/<endereço>/historico.db` (SQLite), que pode ser aberto com qualquer ferramenta SQLite
-(ex.: DB Browser for SQLite).
+O histórico de cada projeto fica em `data/projects/<endereço>/historico.db` (SQLite), que pode ser aberto com
+qualquer ferramenta SQLite (ex.: DB Browser for SQLite).
 
-- **O que registrar**: na aba Tags, marque a coluna "Histórico". A "banda morta" é a variação mínima para gravar
-  (ex.: 0,1 °C), o que economiza espaço.
-- **Quando grava**: sempre que o valor muda além da banda morta e, no mínimo, a cada 60 s (configurável).
-- **Por quanto tempo**: 90 dias por padrão (Histórico → Configuração). O registro de ações é guardado por no mínimo 1 ano.
+- **O que registrar** (aba Tags, coluna "Histórico"):
+  - marque os tags que precisam de histórico;
+  - **banda** (banda morta): só grava se o valor variar mais que isso (ex.: 0,5 °C);
+  - **seg.** (intervalo mínimo): grava no máximo 1 vez a cada X segundos, útil para valores que mudam muito rápido.
+- **Quando grava**: quando o valor muda (respeitando banda e intervalo) e, no mínimo, a cada 60 s (configurável).
+- **Quanto tempo guardar** (Histórico → Configuração):
+  - **dados completos** por 14 dias (padrão);
+  - depois disso fica só o **resumo por minuto** (média, mínimo e máximo de cada minuto) por 365 dias (padrão),
+    ocupando muito menos. O gráfico e o CSV usam o resumo nesses períodos e avisam isso.
+  - **limite de tamanho** opcional (MB): se passar, apaga primeiro os dados completos mais antigos (que já estão
+    no resumo) e depois o resumo mais antigo. O disco nunca enche por causa do histórico.
+- **Formato compacto**: cerca de 23 a 30 bytes por registro (metade do formato anterior). O espaço apagado volta
+  para o disco aos poucos, sem travar a IHM; o botão **🗜 Compactar agora** reorganiza o arquivo de uma vez.
+- **📊 Ocupação por tag**: mostra quais tags ocupam mais e quanto gravam por dia, para ajustar banda e intervalo.
+- A tela de configuração mostra uma **estimativa** do espaço que a configuração vai ocupar.
+- **Históricos antigos são convertidos sozinhos** para o formato compacto na primeira vez que o servidor liga
+  com esta versão (em bancos grandes pode levar alguns minutos nessa primeira vez). Dados com mais de 14 dias
+  viram resumo por minuto.
 - **Consulta**: aba 📊 Histórico — escolha os tags e o período, arraste no gráfico para ampliar e exporte em CSV
-  (abre direto no Excel). A aba Alarmes mostra todos os eventos com filtro e exportação.
+  (abre direto no Excel; colunas valor, mínimo, máximo e tipo "completo" ou "resumo 1 min").
+  A aba Alarmes mostra todos os eventos com filtro e exportação.
 - O gráfico de tendência das telas já abre com os dados do banco.
+
+Exemplo: 100 tags que mudam rápido, lidas a cada 0,5 s, ocupavam ~90 GB em 90 dias no formato anterior.
+Com 7 dias completos e 1 ano de resumo por minuto ficam em torno de 4 GB (e menos ainda com banda morta).
 
 ## Endereços
 
@@ -247,9 +265,10 @@ temporária (não mexem nos seus projetos) e simulam um PLC Modbus e um multíme
 - **Terminal:** `npm test`.
 - **GitHub:** a cada envio os testes rodam sozinhos no Linux e no Windows (aba *Actions* do repositório).
 
-O que é testado (30 testes):
+O que é testado (38 testes):
 - Drivers: endereços e conversões Modbus (INT, DINT, REAL, bits, troca de words) e SCPI (respostas do DM858, sobrecarga, comandos).
 - Lógica: projeto e versões, gateway (ganho, pulso, "só quando"), troca de tela pelo PLC, alarmes, histórico, imagens, backup automático.
+- Banco de histórico: formato compacto, conversão do formato antigo, resumo por minuto, prazos, intervalo mínimo por tag, limite de tamanho, ocupação e compactação.
 - Servidor: login e níveis, vários projetos e endereços, modo produção, backups com imagens, restaurar histórico, WebSocket, HTTPS.
 - Equipamentos simulados: medida do multímetro chegando ao PLC, troca de função pelo PLC, reset por pulso, bit em registrador, sobrecarga e queda/reconexão.
 

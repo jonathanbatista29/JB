@@ -1,5 +1,5 @@
 // Página de histórico: gráfico de tendências do banco de dados, histórico de alarmes e configuração.
-import { state, h, api, toast, markDirty, can, canEdit, findTag, LV } from './state.js';
+import { state, h, api, toast, markDirty, can, canEdit, findTag, confirmBox, LV } from './state.js';
 
 const COLORS = ['#2d8cff', '#f39c12', '#2ecc71', '#e74c3c', '#9b59b6', '#1abc9c', '#e67e22', '#ecf0f1'];
 const PERIODS = [['900000', 'Últimos 15 min'], ['3600000', 'Última 1 hora'], ['28800000', 'Últimas 8 horas'], ['86400000', 'Últimas 24 horas'],
@@ -89,6 +89,7 @@ function renderTrend(body) {
   const tip = h('div', { class: 'hist-tip hidden' });
   const summary = h('tbody');
   const chartBox = h('div', { class: 'hist-chart' }, canvas, tip);
+  const sumNote = h('p', { class: 'hint', style: { margin: 0 } });
 
   const load = async () => {
     const { from, to } = period();
@@ -99,6 +100,8 @@ function renderTrend(body) {
       return toast(e.message, 'err');
     }
     draw();
+    const su = Object.values(data.summaryUntil || {});
+    sumNote.textContent = su.length ? `Antes de ${fmtDate(Math.max(...su))} o gráfico mostra o resumo por minuto (linha = média, faixa = mínimo e máximo).` : '';
     summary.replaceChildren(...sel.tags.map((n, i) => {
       const pts = (data.series[n] || []).filter((p) => p[1] != null);
       const t = findTag(n);
@@ -230,6 +233,7 @@ function renderTrend(body) {
     tagPicker,
     chartBox,
     h('p', { class: 'hint', style: { margin: 0 } }, 'Arraste no gráfico para ampliar um trecho · duplo clique volta para a última hora.'),
+    sumNote,
     h('div', { class: 'table-wrap' }, h('table', { class: 'grid' },
       h('thead', {}, h('tr', {}, ['Tag', 'Descrição', 'Mínimo', 'Média', 'Máximo', 'Pontos'].map((c) => h('th', {}, c)))), summary)));
   new ResizeObserver(() => draw()).observe(chartBox);
@@ -269,23 +273,80 @@ function renderAlarmHist(body) {
 
 // ---------- Configuração (Engenharia) ----------
 async function renderConfig(body) {
-  const cfg = (state.project.historian ||= { retentionDays: 90, heartbeatSec: 60 });
-  const num = (key, label, min, max) => h('label', { class: 'field' }, label, h('input', { type: 'number', min, max, value: cfg[key],
-    onchange: (e) => { cfg[key] = Math.min(max, Math.max(min, Number(e.target.value) || min)); e.target.value = cfg[key]; markDirty(); } }));
+  const cfg = (state.project.historian ||= {});
+  cfg.rawDays ??= 14; cfg.summaryDays ??= 365; cfg.heartbeatSec ??= 60; cfg.maxSizeMB ??= 0;
+  const num = (key, label, min, max, hint) => h('label', { class: 'field' }, label, h('input', { type: 'number', min, max, value: cfg[key],
+    onchange: (e) => {
+      cfg[key] = Math.min(max, Math.max(min, Math.round(Number(e.target.value)) || min));
+      if (cfg.summaryDays < cfg.rawDays) cfg.summaryDays = cfg.rawDays;
+      e.target.value = cfg[key];
+      markDirty();
+      estimate();
+    } }), hint ? h('small', { class: 'hint' }, hint) : '');
+  const MB = (b) => (b >= 1073741824 ? `${(b / 1073741824).toFixed(2).replace('.', ',')} GB`
+    : b >= 1048576 ? `${(b / 1048576).toFixed(1).replace('.', ',')} MB` : `${Math.round(b / 1024)} KB`);
   const stats = h('div', { class: 'hint' }, 'Carregando…');
+  const est = h('div', { class: 'note' });
+  const usageBox = h('div');
+  let perDay = 0, loggedCount = 0;
+  // Estimativa de espaço com a configuração atual (dados completos + resumo por minuto).
+  function estimate() {
+    if (!perDay && !loggedCount) { est.textContent = 'Sem dados suficientes para estimar (o histórico grava há menos de 1 dia).'; return; }
+    const raw = perDay * cfg.rawDays;
+    const sum = loggedCount * 1440 * 42 * Math.max(0, cfg.summaryDays - cfg.rawDays);
+    est.replaceChildren(h('b', {}, `Estimativa: ~${MB(raw + sum)}`),
+      ` (${MB(raw)} de dados completos em ${cfg.rawDays} dias + ${MB(sum)} de resumo em ${Math.max(0, cfg.summaryDays - cfg.rawDays)} dias)`,
+      cfg.maxSizeMB && raw + sum > cfg.maxSizeMB * 1048576 ? h('div', { class: 'prio-media' }, `Passa do limite de ${cfg.maxSizeMB} MB: os dados mais antigos serão apagados antes do prazo.`) : '');
+  }
+  const showUsage = async (btn) => {
+    btn.disabled = true;
+    try {
+      const u = await api('api/history/usage');
+      usageBox.replaceChildren(h('div', { class: 'table-wrap', style: { maxHeight: '45vh', overflow: 'auto' } }, h('table', { class: 'grid' },
+        h('thead', {}, h('tr', {}, ['Tag', 'Ocupa', 'Grava por dia', 'Registros completos', 'Resumos (min)', ''].map((c) => h('th', {}, c)))),
+        h('tbody', {}, u.map((x) => h('tr', {},
+          h('td', {}, x.tag), h('td', { class: 'val' }, MB(x.bytes)), h('td', {}, MB(x.perDayBytes)),
+          h('td', {}, x.raw.toLocaleString('pt-BR')), h('td', {}, x.summary.toLocaleString('pt-BR')),
+          h('td', { class: 'hint' }, x.logged ? (x.lastDay > 86400 ? 'muito rápido: use banda ou intervalo' : '') : 'não está mais registrando')))))));
+    } catch (e) { toast(e.message, 'err'); }
+    btn.disabled = false;
+  };
+  const compact = async (btn) => {
+    if (!(await confirmBox('Compactar o histórico agora? Reorganiza o arquivo e devolve ao disco todo o espaço livre. Em bancos grandes pode levar alguns segundos, e a IHM fica parada nesse tempo.'))) return;
+    btn.disabled = true; btn.textContent = 'Compactando...';
+    try { const r = await api('api/history/compact', { method: 'POST' }); toast(`Compactado: ${MB(r.before)} → ${MB(r.after)}`, 'ok'); } catch (e) { toast(e.message, 'err'); }
+    renderHistory();
+  };
+  const usageBtn = h('button', { class: 'btn small', onclick: () => showUsage(usageBtn) }, '📊 Ocupação por tag');
+  const compactBtn = h('button', { class: 'btn small', onclick: () => compact(compactBtn) }, '🗜 Compactar agora');
   body.append(h('div', { class: 'cards' },
     h('div', { class: 'card' },
-      h('h3', { class: 'section-title', style: { margin: 0 } }, 'Banco de dados'),
-      num('retentionDays', 'Guardar histórico por (dias)', 1, 3650),
+      h('h3', { class: 'section-title', style: { margin: 0 } }, 'Quanto tempo guardar'),
+      num('rawDays', 'Dados completos por (dias)', 1, 3650, 'Todos os valores gravados, com detalhe total.'),
+      num('summaryDays', 'Resumo por minuto por (dias)', 1, 3650, 'Depois dos dados completos, fica só a média, o mínimo e o máximo de cada minuto (ocupa muito menos).'),
       num('heartbeatSec', 'Gravar no mínimo a cada (segundos), mesmo sem mudança', 1, 3600),
-      h('p', { class: 'hint', style: { margin: 0 } }, 'Clique em "Salvar" no topo para aplicar. Quais tags registrar e a banda morta se configuram na aba Tags.'),
-      stats)));
+      num('maxSizeMB', 'Limite de tamanho (MB, 0 = sem limite)', 0, 10485760, 'Se passar, apaga os dados mais antigos primeiro.'),
+      est,
+      h('p', { class: 'hint', style: { margin: 0 } }, 'Clique em "Salvar" no topo para aplicar. Na aba Tags: quais tags registrar, banda morta e intervalo mínimo de cada um.')),
+    h('div', { class: 'card' },
+      h('h3', { class: 'section-title', style: { margin: 0 } }, 'Situação do banco'),
+      stats,
+      h('div', { class: 'prop-actions' }, usageBtn, compactBtn))),
+    usageBox);
   try {
     const s = await api('api/history/stats');
+    loggedCount = s.logged.length;
+    try {
+      const u = await api('api/history/usage');
+      perDay = u.filter((x) => x.logged).reduce((a, x) => a + x.perDayBytes, 0);
+    } catch {}
+    estimate();
     stats.replaceChildren(
-      h('div', {}, `Registros gravados: ${s.samples.toLocaleString('pt-BR')}`),
-      h('div', {}, `Desde: ${s.first ? fmtDate(s.first) : '—'}`),
-      h('div', {}, `Tamanho do arquivo: ${(s.sizeBytes / 1048576).toFixed(1).replace('.', ',')} MB`),
+      h('div', {}, `Tamanho do arquivo: ${MB(s.sizeBytes)}`, s.sizeBytes - s.usedBytes > 1048576 ? ` (${MB(s.sizeBytes - s.usedBytes)} livres para reaproveitar)` : ''),
+      h('div', {}, `Registros completos: ${s.samples.toLocaleString('pt-BR')}${s.firstRaw ? ' desde ' + fmtDate(s.firstRaw) : ''}`),
+      h('div', {}, `Resumos por minuto: ${s.summaries.toLocaleString('pt-BR')}${s.firstSummary ? ' desde ' + fmtDate(s.firstSummary) : ''}`),
+      h('div', {}, `Resumo atualizado até: ${s.rollupUntil ? fmtDate(s.rollupUntil) : '—'}`),
+      s.lastTrim ? h('div', { class: 'prio-media' }, `Limite de tamanho atingido em ${fmtDate(s.lastTrim.ts)}: dados ${s.lastTrim.kind} apagados até ${fmtDate(s.lastTrim.until)}`) : '',
       h('div', {}, `Tags registrados agora: ${s.logged.length ? s.logged.join(', ') : 'nenhum'}`));
   } catch (e) {
     stats.textContent = e.message;

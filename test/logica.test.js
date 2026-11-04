@@ -32,7 +32,7 @@ test('Projeto: normalize preenche padrões e valida números', () => {
   const p = storage.normalize({ screens: [{ id: 'a' }, { id: 'b', number: 5 }, { id: 'c' }], tags: [{ name: 'X' }] });
   assert.deepEqual(p.screens.map((s) => s.number), [1, 5, 2]);
   assert.equal(p.startScreen, 'a');
-  assert.deepEqual(p.historian, { retentionDays: 90, heartbeatSec: 60 });
+  assert.deepEqual(p.historian, { rawDays: 14, summaryDays: 365, heartbeatSec: 60, maxSizeMB: 0 });
   assert.ok(Array.isArray(p.gateway) && Array.isArray(p.navButtons) && Array.isArray(p.alarms));
   assert.throws(() => storage.normalize({ screens: [{ id: 'a', number: 1 }, { id: 'b', number: 1 }], tags: [] }), /repetido/);
   assert.throws(() => storage.normalize({ screens: [], tags: [{ name: 'A' }, { name: 'A' }] }), /repetido/);

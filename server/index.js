@@ -341,13 +341,20 @@ proj.get('/history.csv', need(LV.VIEW), wrap((req, res) => {
   const { from, to } = range(req);
   const rows = req.rt.hist.raw(tagList(req), from, to);
   download(res, `historico_${req.rt.slug}_${new Date(from).toISOString().slice(0, 10)}.csv`, 'text/csv; charset=utf-8');
-  res.write('﻿data_hora;tag;valor;qualidade\n');
-  for (const r of rows) res.write(`${csvDate(r.ts)};${r.tag};${r.v == null ? '' : String(r.v).replace('.', ',')};${r.q ? 'boa' : 'ruim'}\n`);
+  const n = (v) => (v == null ? '' : String(v).replace('.', ','));
+  res.write('\ufeffdata_hora;tag;valor;minimo;maximo;qualidade;tipo\n');
+  for (const r of rows) res.write(`${csvDate(r.ts)};${r.tag};${n(r.v)};${n(r.mn)};${n(r.mx)};${r.q ? 'boa' : 'ruim'};${r.kind === 'resumo' ? 'resumo 1 min' : 'completo'}\n`);
   res.end();
   auth.log(req.who, 'Exportou histórico', `/${req.rt.slug}/: ${tagList(req).join(', ')} (${rows.length} linhas)`);
 }));
 proj.get('/alarm-history', need(LV.VIEW), wrap((req) => req.rt.hist.alarms(range(req, Infinity))));
 proj.get('/history/stats', need(LV.VIEW), (req, res) => res.json(req.rt.hist.stats()));
+proj.get('/history/usage', need(LV.MAINT), wrap((req) => req.rt.hist.usage()));
+proj.post('/history/compact', need(LV.ENG), wrap((req) => {
+  const r = req.rt.hist.compact();
+  auth.log(req.who, 'Compactou histórico', `/${req.rt.slug}/: ${(r.before / 1048576).toFixed(1)} MB → ${(r.after / 1048576).toFixed(1)} MB`);
+  return { ok: true, ...r };
+}));
 
 // Imagens do projeto (biblioteca usada pelas telas)
 proj.get('/images', need(LV.VIEW), (req, res) => {

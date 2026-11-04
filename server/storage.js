@@ -4,15 +4,14 @@ const path = require('path');
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const DEMO = path.join(__dirname, 'demo-project.json');
+const { normalizeConfig: normalizeHistorian } = require('./historian');
 
 function normalize(p) {
   const out = typeof p === 'object' && p ? p : {};
   out.name = String(out.name || 'Projeto IHM');
   for (const k of ['connections', 'tags', 'screens', 'alarms']) if (!Array.isArray(out[k])) out[k] = [];
-  out.historian = {
-    retentionDays: Math.min(3650, Math.max(1, Number(out.historian?.retentionDays) || 90)),
-    heartbeatSec: Math.min(3600, Math.max(1, Number(out.historian?.heartbeatSec) || 60)),
-  };
+  // Histórico: dias de dados completos, dias de resumo por minuto, gravação mínima e limite de tamanho.
+  out.historian = normalizeHistorian(out.historian || {});
   if (!out.screens.length) out.screens.push({ id: 'tela1', name: 'Principal', width: 1024, height: 600, bg: '#1e2530', widgets: [] });
   for (const s of out.screens) if (!Array.isArray(s.widgets)) s.widgets = [];
   // Cada tela tem um número único (usado na troca de tela pelo PLC).
