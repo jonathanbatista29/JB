@@ -238,6 +238,21 @@ O histórico de cada projeto fica em `data/projects/<endereço>/historico.db` (S
 **CompactLogix**: informe o IP e slot 0. Os tags são lidos pelo nome, sem mapeamento. A opção
 "Ler lista de tags ao conectar" é necessária para UDTs e STRING.
 
+## Testes automáticos
+
+Os testes conferem que tudo continua funcionando depois de qualquer mudança. Eles usam uma pasta
+temporária (não mexem nos seus projetos) e simulam um PLC Modbus e um multímetro DM858.
+
+- **Windows:** dois cliques em **`testar_ihm.bat`**.
+- **Terminal:** `npm test`.
+- **GitHub:** a cada envio os testes rodam sozinhos no Linux e no Windows (aba *Actions* do repositório).
+
+O que é testado (30 testes):
+- Drivers: endereços e conversões Modbus (INT, DINT, REAL, bits, troca de words) e SCPI (respostas do DM858, sobrecarga, comandos).
+- Lógica: projeto e versões, gateway (ganho, pulso, "só quando"), troca de tela pelo PLC, alarmes, histórico, imagens, backup automático.
+- Servidor: login e níveis, vários projetos e endereços, modo produção, backups com imagens, restaurar histórico, WebSocket, HTTPS.
+- Equipamentos simulados: medida do multímetro chegando ao PLC, troca de função pelo PLC, reset por pulso, bit em registrador, sobrecarga e queda/reconexão.
+
 ## Estrutura
 
 ```
@@ -260,6 +275,7 @@ public/            interface web (sem build)
   js/widgets.js    objetos de tela
   js/pages.js      Tags, PLCs e Alarmes
   projects.html    lista de projetos (js/projects.js)
+test/              testes automáticos (npm test)
 data/
   projects/<endereço>/  project.json, backups/ (versões), imagens/, historico.db, estado.json (modo)
   users.json            usuários
