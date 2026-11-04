@@ -196,3 +196,17 @@ test('Backup automático: horário, quantidade de cópias e pasta inválida', as
   assert.ok(fs.existsSync(path.join(dest, list[0].name, 'backup-geral.json')));
   assert.equal(new Date(ab.nextRun()).getDate(), new Date(Date.now() + 86400000).getDate(), 'já rodou hoje: próximo é amanhã');
 });
+
+test('Coleta: conexão desativada marca os tags como ruins (sem valor congelado)', async () => {
+  const tm = new TagManager();
+  const conn = { id: 'c1', name: 'Sim', driver: 'simulator', pollMs: 50 };
+  const p = { connections: [conn], tags: [{ name: 'T1', connection: 'c1', address: 'sine', type: 'real' }], alarms: [] };
+  try {
+    await tm.load(p);
+    await waitFor(() => tm.values.T1 && tm.values.T1.q === 'good');
+    await tm.load({ ...p, connections: [{ ...conn, enabled: false }] });
+    assert.equal(tm.values.T1.q, 'bad');
+  } finally {
+    await tm.stopAll();
+  }
+});
