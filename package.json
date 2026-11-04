@@ -1,0 +1,17 @@
+{
+  "name": "jb-ihm",
+  "version": "0.1.0",
+  "description": "IHM / SCADA web: editor de telas, conexão com PLCs (Siemens S7, Modbus TCP/RTU) e modo operador",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "express": "^5.1.0",
+    "modbus-serial": "^8.0.25",
+    "nodes7": "^0.3.18",
+    "ws": "^8.18.0"
+  }
+}
