@@ -1,7 +1,7 @@
 // Biblioteca de objetos de tela (widgets).
 // Cada widget define: nome, ícone, tamanho padrão, propriedades editáveis e render().
 // render(w, rt) devolve o elemento; el._update() é chamado quando os valores mudam.
-import { h, tagValue, tagQuality, findTag, writeTag, keypad, confirmBox } from './state.js';
+import { h, tagValue, tagQuality, findTag, writeTag, keypad, confirmBox, can, emit, tagWriteLevel, LV, LEVEL_NAMES } from './state.js';
 
 const num = (v, d = 0) => (Number.isFinite(Number(v)) && v !== '' && v != null ? Number(v) : d);
 const fmt = (v, dec) => {
@@ -15,6 +15,19 @@ const isOn = (v) => v === true || (typeof v === 'number' && v !== 0) || v === '1
 const pct = (v, min, max) => Math.max(0, Math.min(100, ((num(v) - min) / (max - min || 1)) * 100));
 const boolFor = (tag, on) => (findTag(tag)?.type === 'bool' ? on : on ? 1 : 0);
 
+// Nível mínimo para usar um objeto de comando. "Padrão": operador para comandos, todos para navegar.
+function minLevel(w) {
+  const own = Number(w.props.level) || 0;
+  if (w.type === 'button' && w.props.action === 'navigate') return own;
+  return Math.max(LV.OPERATOR, own, w.props.tag ? tagWriteLevel(w.props.tag) : LV.OPERATOR);
+}
+function allowed(w) {
+  const min = minLevel(w);
+  if (can(min)) return true;
+  emit('needLogin', { min, reason: `Este comando exige nível ${LEVEL_NAMES[min]}` });
+  return false;
+}
+
 const P = {
   tag: { key: 'tag', label: 'Tag', kind: 'tag', full: true },
   text: { key: 'text', label: 'Texto', kind: 'text', full: true },
@@ -26,6 +39,8 @@ const P = {
   unit: { key: 'unit', label: 'Unidade', kind: 'text' },
   decimals: { key: 'decimals', label: 'Casas decimais', kind: 'number' },
   blink: { key: 'blink', label: 'Piscar quando ligado', kind: 'bool', full: true },
+  level: { key: 'level', label: 'Nível mínimo para usar', kind: 'select', full: true,
+    options: [['', 'Padrão'], ['1', 'Operador'], ['2', 'Manutenção'], ['3', 'Engenharia'], ['4', 'Administrador']] },
 };
 
 export const WIDGETS = {
@@ -61,7 +76,8 @@ export const WIDGETS = {
         ['value', 'Escrever valor fixo'], ['navigate', 'Ir para outra tela']] },
       P.tag, { key: 'value', label: 'Valor a escrever', kind: 'number', showIf: (p) => p.action === 'value' },
       { key: 'screen', label: 'Tela de destino', kind: 'screen', full: true, showIf: (p) => p.action === 'navigate' },
-      P.bg, P.color, P.fontSize, { key: 'confirm', label: 'Pedir confirmação', kind: 'bool' }],
+      P.bg, P.color, P.fontSize, { key: 'confirm', label: 'Pedir confirmação', kind: 'bool' }, P.level],
+    command: true,
     render(w, rt) {
       const p = w.props;
       const el = h('button', { class: 'w-button', style: { background: p.bg, color: p.color, fontSize: p.fontSize + 'px' } }, p.text);
@@ -73,12 +89,13 @@ export const WIDGETS = {
       const ask = async () => !p.confirm || confirmBox(`Confirma "${p.text}"?`);
       if (p.action === 'momentary') {
         const up = () => { if (el._down) { el._down = false; el.classList.remove('pressed'); writeTag(p.tag, boolFor(p.tag, false)).catch(() => {}); } };
-        el.addEventListener('pointerdown', (e) => { e.preventDefault(); el.setPointerCapture?.(e.pointerId); el._down = true; el.classList.add('pressed'); writeTag(p.tag, boolFor(p.tag, true)).catch(() => {}); });
+        el.addEventListener('pointerdown', (e) => { e.preventDefault(); if (!allowed(w)) return; el.setPointerCapture?.(e.pointerId); el._down = true; el.classList.add('pressed'); writeTag(p.tag, boolFor(p.tag, true)).catch(() => {}); });
         el.addEventListener('pointerup', up);
         el.addEventListener('pointercancel', up);
         el.addEventListener('lostpointercapture', up);
       } else {
         el.addEventListener('click', async () => {
+          if (!allowed(w)) return;
           if (p.action === 'navigate') return rt.navigate(p.screen);
           if (!(await ask())) return;
           const v = p.action === 'toggle' ? boolFor(p.tag, !isOn(tagValue(p.tag)))
@@ -94,7 +111,8 @@ export const WIDGETS = {
   switch: {
     name: 'Chave liga/desliga', icon: '⇆', size: [140, 44], group: 'Comandos',
     defaults: { tag: '', onText: 'LIGADO', offText: 'DESLIGADO', color: '#ffffff', confirm: false },
-    props: [P.tag, { key: 'onText', label: 'Texto ligado', kind: 'text' }, { key: 'offText', label: 'Texto desligado', kind: 'text' }, P.color, { key: 'confirm', label: 'Pedir confirmação', kind: 'bool' }],
+    props: [P.tag, { key: 'onText', label: 'Texto ligado', kind: 'text' }, { key: 'offText', label: 'Texto desligado', kind: 'text' }, P.color, { key: 'confirm', label: 'Pedir confirmação', kind: 'bool' }, P.level],
+    command: true,
     render(w, rt) {
       const p = w.props;
       const txt = h('span', { class: 'txt' });
@@ -105,6 +123,7 @@ export const WIDGETS = {
         txt.textContent = on ? p.onText : p.offText;
       };
       if (rt.runtime) el.addEventListener('click', async () => {
+        if (!allowed(w)) return;
         const next = !isOn(tagValue(p.tag));
         if (p.confirm && !(await confirmBox(`Confirma ${next ? p.onText : p.offText}?`))) return;
         writeTag(p.tag, boolFor(p.tag, next)).catch(() => {});
@@ -116,13 +135,15 @@ export const WIDGETS = {
   input: {
     name: 'Entrada numérica', icon: '123', size: [150, 40], group: 'Comandos',
     defaults: { tag: '', min: 0, max: 100, decimals: 0, unit: '', fontSize: 18 },
-    props: [P.tag, P.min, P.max, P.decimals, P.unit, P.fontSize],
+    props: [P.tag, P.min, P.max, P.decimals, P.unit, P.fontSize, P.level],
+    command: true,
     render(w, rt) {
       const p = w.props;
       const val = h('span', {});
       const el = h('div', { class: 'w-input', style: { fontSize: p.fontSize + 'px' } }, val, p.unit ? h('small', {}, p.unit) : null);
       el._update = () => { val.textContent = fmt(tagValue(p.tag), p.decimals); val.classList.toggle('bad-q', tagQuality(p.tag) === 'bad'); };
       if (rt.runtime) el.addEventListener('click', async () => {
+        if (!allowed(w)) return;
         const v = await keypad({ title: findTag(p.tag)?.description || p.tag, value: tagValue(p.tag), min: num(p.min, -Infinity), max: num(p.max, Infinity), decimals: num(p.decimals) });
         if (v != null) writeTag(p.tag, v).catch(() => {});
       });
@@ -133,14 +154,15 @@ export const WIDGETS = {
   slider: {
     name: 'Controle deslizante', icon: '⎯', size: [300, 40], group: 'Comandos',
     defaults: { tag: '', min: 0, max: 100, step: 1 },
-    props: [P.tag, P.min, P.max, { key: 'step', label: 'Passo', kind: 'number' }],
+    props: [P.tag, P.min, P.max, { key: 'step', label: 'Passo', kind: 'number' }, P.level],
+    command: true,
     render(w, rt) {
       const p = w.props;
       const inp = h('input', { type: 'range', min: num(p.min), max: num(p.max, 100), step: num(p.step, 1) });
       const el = h('div', { class: 'w-slider' }, inp);
       el._update = () => { if (!inp._drag) inp.value = num(tagValue(p.tag)); };
       if (rt.runtime) {
-        inp.addEventListener('pointerdown', () => (inp._drag = true));
+        inp.addEventListener('pointerdown', (e) => { if (!allowed(w)) { e.preventDefault(); return; } inp._drag = true; });
         inp.addEventListener('change', () => { inp._drag = false; writeTag(p.tag, Number(inp.value)).catch(() => {}); });
       } else inp.disabled = true;
       return el;
@@ -396,6 +418,10 @@ export function renderWidget(w, rt) {
   box._update = inner._update || (() => {});
   box._destroy = inner._destroy || (() => {});
   box._update();
+  if (rt.runtime && def.command) {
+    box.classList.toggle('locked', !can(minLevel(w)));
+    box.title = can(minLevel(w)) ? '' : `Requer nível ${LEVEL_NAMES[minLevel(w)]}`;
+  }
   return box;
 }
 

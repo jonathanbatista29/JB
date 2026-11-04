@@ -7,7 +7,13 @@ export const state = {
   alarms: { active: [], history: [] },
   dirty: false,
   wsOnline: false,
+  me: { user: null, level: -1, guestLevel: 0, idleMinutes: 10, levels: [] },
 };
+
+// Níveis de acesso
+export const LV = { NONE: -1, VIEW: 0, OPERATOR: 1, MAINT: 2, ENG: 3, ADMIN: 4 };
+export const LEVEL_NAMES = { '-1': 'Sem acesso', 0: 'Visualizador', 1: 'Operador', 2: 'Manutenção', 3: 'Engenharia', 4: 'Administrador' };
+export const can = (min) => state.me.level >= min;
 
 export const bus = new EventTarget();
 export const emit = (name, detail) => bus.dispatchEvent(new CustomEvent(name, { detail }));
@@ -20,8 +26,31 @@ export function markDirty() {
 
 export const uid = (p = 'id') => p + Math.random().toString(36).slice(2, 9);
 
+// Chamada à API que devolve JSON e transforma erro em exceção.
+export async function api(url, opts = {}) {
+  const r = await fetch(url, {
+    ...opts,
+    headers: opts.body ? { 'Content-Type': 'application/json' } : {},
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || j.ok === false) {
+    const e = new Error(j.error || `Erro ${r.status}`);
+    e.status = r.status;
+    throw e;
+  }
+  return j;
+}
+
+export async function loadMe() {
+  state.me = await api('api/me');
+  if (state.me.user?.mustChange) state.me.level = LV.NONE;
+  emit('me', state.me);
+  return state.me;
+}
+
 export async function loadProject() {
-  const [p, m] = await Promise.all([fetch('api/project').then((r) => r.json()), fetch('api/models').then((r) => r.json())]);
+  const [p, m] = await Promise.all([api('api/project'), api('api/models')]);
   state.project = p;
   state.models = m;
   state.dirty = false;
@@ -30,9 +59,7 @@ export async function loadProject() {
 }
 
 export async function saveProject() {
-  const r = await fetch('api/project', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(state.project) });
-  const j = await r.json();
-  if (!j.ok) throw new Error(j.error || 'Erro ao salvar');
+  await api('api/project', { method: 'PUT', body: state.project });
   state.dirty = false;
   emit('dirty', false);
 }
@@ -51,17 +78,28 @@ export const findTag = (name) => state.project?.tags.find((t) => t.name === name
 let ws, seq = 0;
 const pending = new Map();
 
+export function reconnectWs() {
+  const old = ws;
+  ws = null;
+  if (old) { old.onclose = null; old.close(); }
+  connectWs();
+}
+
 export function connectWs() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const base = location.pathname.replace(/[^/]*$/, '');
   ws = new WebSocket(`${proto}://${location.host}${base}ws`);
   ws.onopen = () => { state.wsOnline = true; emit('status', state.status); };
-  ws.onclose = () => {
+  const me = ws;
+  ws.onclose = (ev) => {
+    if (ws !== me) return; // conexão antiga substituída após login/logout
     state.wsOnline = false;
     emit('status', state.status);
     for (const [, p] of pending) p.reject(new Error('Sem conexão com o servidor'));
     pending.clear();
-    setTimeout(connectWs, 2000);
+    // 4001 = acesso mudou (logout, sessão expirada, permissão alterada): recarrega o usuário.
+    if (ev.code === 4001) emit('sessionChanged');
+    else setTimeout(connectWs, 2000);
   };
   ws.onmessage = (ev) => {
     const msg = JSON.parse(ev.data);
@@ -95,8 +133,16 @@ export function connectWs() {
   };
 }
 
+// Nível mínimo para escrever num tag (padrão: operador).
+export const tagWriteLevel = (name) => Math.max(LV.OPERATOR, Number(findTag(name)?.writeLevel) || LV.OPERATOR);
+
 export function writeTag(tag, value) {
   if (!tag) return Promise.resolve();
+  const min = tagWriteLevel(tag);
+  if (!can(min)) {
+    emit('needLogin', { min, reason: `Escrever em ${tag} exige nível ${LEVEL_NAMES[min]}` });
+    return Promise.reject(new Error('sem permissão'));
+  }
   if (!ws || ws.readyState !== 1) {
     toast('Sem conexão com o servidor', 'err');
     return Promise.reject(new Error('offline'));
@@ -106,10 +152,11 @@ export function writeTag(tag, value) {
   return new Promise((resolve, reject) => {
     pending.set(id, { resolve, reject });
     setTimeout(() => { if (pending.delete(id)) reject(new Error('Tempo esgotado na escrita')); }, 5000);
-  }).catch((e) => { toast(`Escrita em ${tag}: ${e.message}`, 'err'); throw e; });
+  }).catch((e) => { if (e.message !== 'sem permissão') toast(`Escrita em ${tag}: ${e.message}`, 'err'); throw e; });
 }
 
 export function ackAlarm(id) {
+  if (!can(LV.OPERATOR)) return emit('needLogin', { min: LV.OPERATOR, reason: 'Reconhecer alarmes exige login de operador' });
   if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'ack', id }));
 }
 
@@ -138,10 +185,12 @@ export function h(tag, attrs = {}, ...children) {
 }
 
 const modal = () => document.getElementById('modal');
-export function openModal(content) {
+// `locked`: não fecha ao clicar fora (login obrigatório, troca de senha forçada).
+export function openModal(content, { locked = false } = {}) {
   const box = document.getElementById('modalBox');
   box.replaceChildren(content);
   modal().classList.remove('hidden');
+  modal().dataset.locked = locked ? '1' : '';
 }
 export function closeModal() {
   modal().classList.add('hidden');

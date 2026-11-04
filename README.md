@@ -18,6 +18,8 @@ em PC, tablet ou celular.
   - **Simulador** para testar sem PLC
 - **Tags** (variáveis): BOOL, INT, WORD, DINT, DWORD, REAL, STRING, com valor ao vivo e escrita de teste.
 - **Alarmes**: condições por tag, prioridade, faixa de alarme no rodapé, reconhecimento e histórico.
+- **Login com níveis de acesso** (Operador, Manutenção, Engenharia, Administrador), logout automático por
+  inatividade, nível mínimo por objeto de tela e por tag, e registro de ações (quem fez o quê e quando).
 - Leitura otimizada (agrupa endereços Modbus em blocos), reconexão automática.
 - Exportar/importar projeto em JSON.
 
@@ -43,6 +45,25 @@ Variáveis de ambiente opcionais: `PORT` (padrão 3000), `HOST` (padrão 0.0.0.0
 4. Clique em **Salvar** (Ctrl+S). A comunicação reinicia com a nova configuração.
 5. **Operação** → tela do operador.
 
+## Login e níveis de acesso
+
+No primeiro uso entre com **usuário `admin` e senha `admin`**. O sistema obriga a trocar a senha.
+
+| Nível | Pode |
+|---|---|
+| Sem login | Conforme configuração: bloqueado, só visualizar (padrão) ou operar |
+| Operador | Usar os comandos das telas e reconhecer alarmes |
+| Manutenção | + ver Tags e PLCs (só leitura) e escrever valores de teste |
+| Engenharia | + editar telas, tags, PLCs, alarmes e salvar o projeto |
+| Administrador | + gerenciar usuários, configurações de acesso e ver o registro de ações |
+
+- As permissões são verificadas no servidor, não só na tela.
+- Cada tag tem um "nível mínimo para escrever"; cada botão/chave/entrada pode exigir um nível maior.
+- Objetos bloqueados aparecem com 🔒; ao tocar, a IHM pede login.
+- Usuários e registro de ações ficam em `data/users.json` e `data/audit.log` (fora do projeto exportado).
+- Esqueceu a senha do admin? Pare o servidor e apague `data/users.json`: o usuário `admin`/`admin` é recriado
+  (os outros usuários serão perdidos).
+
 ## Endereços
 
 | Driver | Exemplos |
@@ -63,6 +84,7 @@ Variáveis de ambiente opcionais: `PORT` (padrão 3000), `HOST` (padrão 0.0.0.0
 ```
 server/            servidor Node.js
   index.js         HTTP + WebSocket
+  auth.js          usuários, sessões e registro de ações
   tagManager.js    leitura cíclica, escrita e alarmes
   drivers/         simulator, modbus (TCP/RTU), s7, logix (CompactLogix)
   models.js        modelos de PLC pré-configurados
@@ -76,7 +98,6 @@ data/project.json  projeto salvo (criado ao salvar)
 
 ## Próximos passos sugeridos
 
-- Login com níveis de acesso (operador / manutenção / engenharia)
 - Histórico de tendências em banco de dados
 - Drivers Omron FINS, OPC UA
 - Receitas e relatórios

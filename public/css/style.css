@@ -50,7 +50,7 @@ main { flex: 1; position: relative; min-height: 0; }
 .page.active { display: flex; }
 
 /* ---------- Formulários ---------- */
-input[type=text], input[type=number], select, textarea {
+input[type=text], input[type=number], input[type=password], select, textarea {
   background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 5px 7px; width: 100%; min-width: 0;
 }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
@@ -184,3 +184,26 @@ tr.unacked td { background: #3a1512; }
   .ed-props { width: 220px; }
   .conn-summary, .dirty { display: none; }
 }
+
+/* ---------- Login e níveis de acesso ---------- */
+.login-form { display: flex; flex-direction: column; gap: 10px; width: 320px; max-width: 100%; }
+.login-form h3 { margin: 0; }
+.login-brand { font-weight: 800; font-size: 26px; letter-spacing: 1px; color: #fff; text-align: center; }
+.login-brand span { color: var(--accent); margin-left: 2px; }
+.login-form input { padding: 9px 10px; font-size: 16px; }
+.form-err { color: #ff8a80; font-size: 13px; min-height: 16px; }
+body.locked main, body.locked .tabs, body.locked .top-actions > :not(#userBox) { visibility: hidden; }
+.user-btn { display: flex; align-items: center; gap: 6px; }
+.user-name { max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+.lvl-badge { font-size: 11px; padding: 1px 6px; border-radius: 8px; background: #34495e; color: #fff; }
+.lvl-badge.lvl-2 { background: #8e6b12; }
+.lvl-badge.lvl-3 { background: #1f5f99; }
+.lvl-badge.lvl-4 { background: #7d2a7d; }
+.menu-info { display: flex; flex-direction: column; padding: 8px 10px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.menu-info small { color: var(--muted); }
+.wgt.locked { cursor: not-allowed; }
+.wgt.locked > .inner { filter: grayscale(.6) brightness(.75); }
+.wgt.locked::after { content: "🔒"; position: absolute; top: 2px; right: 4px; font-size: 12px; pointer-events: none; }
+tr.disabled-row td { opacity: .55; }
+input:disabled, select:disabled, textarea:disabled, button:disabled { opacity: .6; cursor: not-allowed; }
+@media (max-width: 800px) { .user-name, .lvl-badge { display: none; } }

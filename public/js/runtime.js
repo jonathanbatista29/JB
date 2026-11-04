@@ -16,6 +16,7 @@ export function initRuntime(el) {
   setInterval(() => (clock.textContent = new Date().toLocaleString('pt-BR')), 1000);
 
   on('project', () => show(current));
+  on('me', () => { if (state.project) show(current); });
   on('values', (changed) => {
     if (!root.classList.contains('active')) return;
     for (const b of boxes) b._update();
@@ -31,6 +32,7 @@ export function refreshRuntime() {
 export function show(id) {
   const screens = state.project?.screens || [];
   const scr = screens.find((s) => s.id === id) || screens[0];
+  if (!scr) { stage.replaceChildren(); nav.replaceChildren(); return; }
   if (!scr) return;
   current = scr.id;
   location.hash = 'tela=' + encodeURIComponent(scr.id);

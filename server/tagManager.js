@@ -161,21 +161,21 @@ class TagManager extends EventEmitter {
     if (dirty) this.emit('alarms');
   }
 
-  ack(id) {
+  ack(id, user) {
     const ids = id === '*' ? Object.keys(this.active) : [id];
     for (const i of ids) {
       const act = this.active[i];
       if (!act || act.acked) continue;
       act.acked = true;
       const al = (this.project.alarms || []).find((a) => a.id === i);
-      if (al) this.log(al, 'RECONHECIDO', act.value);
+      if (al) this.log(al, 'RECONHECIDO', act.value, user);
       if (act.cleared) delete this.active[i];
     }
     this.emit('alarms');
   }
 
-  log(al, event, value) {
-    this.history.unshift({ ts: Date.now(), event, message: al.message, tag: al.tag, value, priority: al.priority || 'media' });
+  log(al, event, value, user) {
+    this.history.unshift({ ts: Date.now(), event, message: al.message, tag: al.tag, value, priority: al.priority || 'media', user: user || '' });
     if (this.history.length > HISTORY_MAX) this.history.length = HISTORY_MAX;
   }
 

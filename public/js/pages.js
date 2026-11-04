@@ -1,5 +1,13 @@
 // Páginas de configuração: Tags, Conexões (PLCs) e Alarmes.
-import { state, on, h, markDirty, uid, confirmBox, toast, writeTag, keypad, ackAlarm } from './state.js';
+import { state, on, h, markDirty, uid, confirmBox, toast, writeTag, keypad, ackAlarm, can, LV, LEVEL_NAMES } from './state.js';
+
+// Abaixo de Engenharia as páginas de configuração ficam só para leitura.
+// Elementos com a classe "keep" (filtros, escrita de teste, reconhecer) continuam ativos.
+function readOnly(root) {
+  if (can(LV.ENG)) return;
+  root.querySelectorAll('input, select, textarea, button').forEach((el) => { if (!el.closest('.keep')) el.disabled = true; });
+  root.querySelectorAll('.eng-only').forEach((el) => el.remove());
+}
 
 const TYPES = [['bool', 'BOOL (bit)'], ['int16', 'INT (16 bits)'], ['uint16', 'WORD / UINT (16 bits)'], ['int32', 'DINT (32 bits)'], ['uint32', 'DWORD / UDINT (32 bits)'], ['float32', 'REAL (float 32)'], ['string', 'STRING']];
 
@@ -36,9 +44,9 @@ export function renderTags() {
   const connName = (id) => p.connections.find((c) => c.id === id);
   const usedDrivers = [...new Set(p.connections.map((c) => c.driver))];
 
-  const filterIn = h('input', { type: 'text', placeholder: 'Filtrar tags…', value: tagFilter, style: { maxWidth: '220px' },
+  const filterIn = h('input', { type: 'text', class: 'keep', placeholder: 'Filtrar tags…', value: tagFilter, style: { maxWidth: '220px' },
     oninput: (e) => { tagFilter = e.target.value; renderRows(); } });
-  const connSel = h('select', { style: { maxWidth: '200px' }, onchange: (e) => { tagConnFilter = e.target.value; renderRows(); } },
+  const connSel = h('select', { class: 'keep', style: { maxWidth: '200px' }, onchange: (e) => { tagConnFilter = e.target.value; renderRows(); } },
     h('option', { value: '' }, 'Todas as conexões'), p.connections.map((c) => h('option', { value: c.id, selected: c.id === tagConnFilter }, c.name)));
   const tbody = h('tbody');
 
@@ -73,11 +81,13 @@ export function renderTags() {
       h('td', {}, h('input', { type: 'text', value: t.address, placeholder: conn?.driver === 's7' ? 'DB1,REAL0' : conn?.driver === 'logix' ? 'Motor_Run' : conn?.driver === 'simulator' ? 'memoria1' : 'HR0', onchange: set('address') })),
       h('td', {}, h('select', { onchange: set('type') }, TYPES.map(([v, txt]) => h('option', { value: v, selected: v === t.type }, txt)))),
       h('td', {}, h('select', { onchange: set('access') }, h('option', { value: 'RW', selected: t.access !== 'R' }, 'Leitura/Escrita'), h('option', { value: 'R', selected: t.access === 'R' }, 'Somente leitura'))),
+      h('td', {}, h('select', { title: 'Nível mínimo para escrever neste tag', onchange: (e) => { t.writeLevel = Number(e.target.value); markDirty(); } },
+        [1, 2, 3, 4].map((l) => h('option', { value: l, selected: (Number(t.writeLevel) || 1) === l }, LEVEL_NAMES[l])))),
       h('td', {}, h('input', { type: 'text', value: t.description || '', onchange: set('description') })),
       valTd,
       h('td', { style: { whiteSpace: 'nowrap' } },
-        t.access !== 'R' ? h('button', { class: 'btn small', title: 'Escrever valor', onclick: () => testWrite(t) }, '✎') : null, ' ',
-        h('button', { class: 'btn small danger', title: 'Excluir', onclick: async () => {
+        t.access !== 'R' ? h('span', { class: 'keep' }, h('button', { class: 'btn small', title: 'Escrever valor', onclick: () => testWrite(t) }, '✎')) : null, ' ',
+        h('button', { class: 'btn small danger eng-only', title: 'Excluir', onclick: async () => {
           if (!(await confirmBox(`Excluir o tag "${t.name}"?`))) return;
           p.tags = p.tags.filter((x) => x !== t);
           markDirty();
@@ -90,7 +100,8 @@ export function renderTags() {
     const list = p.tags.filter((t) => (!tagConnFilter || t.connection === tagConnFilter) &&
       (!f || t.name.toLowerCase().includes(f) || (t.description || '').toLowerCase().includes(f) || String(t.address).toLowerCase().includes(f)));
     tbody.replaceChildren(...list.map(row));
-    if (!list.length) tbody.append(h('tr', {}, h('td', { colspan: 8, class: 'hint' }, 'Nenhum tag. Clique em "+ Novo tag".')));
+    if (!list.length) tbody.append(h('tr', {}, h('td', { colspan: 9, class: 'hint' }, 'Nenhum tag.')));
+    readOnly(tbody);
   }
 
   const addTag = () => {
@@ -107,12 +118,14 @@ export function renderTags() {
 
   renderRows();
   tagsRoot.replaceChildren(
-    h('div', { class: 'head' }, h('h2', {}, `Tags (${p.tags.length})`), filterIn, connSel, h('button', { class: 'btn primary', onclick: addTag }, '+ Novo tag')),
+    h('div', { class: 'head' }, h('h2', {}, `Tags (${p.tags.length})`), filterIn, connSel, h('button', { class: 'btn primary eng-only', onclick: addTag }, '+ Novo tag')),
+    can(LV.ENG) ? null : h('div', { class: 'note' }, 'Modo leitura: só Engenharia altera tags. Você pode ver os valores e escrever valores de teste (✎).'),
     ...usedDrivers.map((d) => h('div', { class: 'note' }, ADDRESS_HELP[d] || '')),
     h('div', { class: 'table-wrap' }, h('table', { class: 'grid' },
-      h('thead', {}, h('tr', {}, ['Nome', 'Conexão', 'Endereço', 'Tipo', 'Acesso', 'Descrição', 'Valor', ''].map((c) => h('th', {}, c)))),
+      h('thead', {}, h('tr', {}, ['Nome', 'Conexão', 'Endereço', 'Tipo', 'Acesso', 'Escrita mín.', 'Descrição', 'Valor', ''].map((c) => h('th', {}, c)))),
       tbody)),
     h('p', { class: 'hint' }, 'Tags novos ou alterados começam a ser lidos depois de clicar em "Salvar".'));
+  readOnly(tagsRoot);
 }
 
 async function testWrite(t) {
@@ -198,7 +211,7 @@ export function renderConnections() {
       h('div', { class: 'prop-grid' }, ...fields, numF('pollMs', 'Ciclo de leitura (ms)', '500')),
       h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
         h('span', { class: 'hint', style: { marginRight: 'auto' } }, `${nTags} tag(s)`),
-        h('button', { class: 'btn small danger', onclick: async () => {
+        h('button', { class: 'btn small danger eng-only', onclick: async () => {
           if (!(await confirmBox(nTags ? `"${c.name}" tem ${nTags} tag(s). Excluir a conexão mesmo assim? (os tags ficam sem conexão)` : `Excluir "${c.name}"?`))) return;
           p.connections = p.connections.filter((x) => x !== c);
           markDirty();
@@ -214,9 +227,11 @@ export function renderConnections() {
   };
 
   connRoot.replaceChildren(
-    h('div', { class: 'head' }, h('h2', {}, 'PLCs / Conexões'), h('button', { class: 'btn primary', onclick: add }, '+ Novo PLC')),
+    h('div', { class: 'head' }, h('h2', {}, 'PLCs / Conexões'), h('button', { class: 'btn primary eng-only', onclick: add }, '+ Novo PLC')),
+    can(LV.ENG) ? null : h('div', { class: 'note' }, 'Modo leitura: só Engenharia altera as conexões.'),
     h('p', { class: 'hint' }, 'Escolha o modelo, preencha o IP e clique em "Salvar" no topo para conectar. O status atualiza em tempo real.'),
     h('div', { class: 'cards' }, p.connections.map(card)));
+  readOnly(connRoot);
   updateConnStatus();
 }
 
@@ -248,18 +263,20 @@ export function renderAlarms() {
       h('td', {}, h('input', { type: 'number', value: a.limit ?? '', style: { width: '90px' }, onchange: set('limit', Number) })),
       h('td', {}, h('input', { type: 'text', value: a.message, onchange: set('message') })),
       h('td', {}, h('select', { onchange: set('priority') }, [['alta', 'Alta'], ['media', 'Média'], ['baixa', 'Baixa']].map(([v, t]) => h('option', { value: v, selected: v === a.priority }, t)))),
-      h('td', {}, h('button', { class: 'btn small danger', onclick: () => { p.alarms = p.alarms.filter((x) => x !== a); markDirty(); renderAlarms(); } }, '✕')));
+      h('td', {}, h('button', { class: 'btn small danger eng-only', onclick: () => { p.alarms = p.alarms.filter((x) => x !== a); markDirty(); renderAlarms(); } }, '✕')));
   };
   cfgBody.append(...p.alarms.map(row));
+  readOnly(cfgBody);
 
   alarmRoot.replaceChildren(
-    h('div', { class: 'head' }, h('h2', {}, 'Alarmes ativos'), h('button', { class: 'btn', onclick: () => ackAlarm('*') }, 'Reconhecer todos')),
+    h('div', { class: 'head' }, h('h2', {}, 'Alarmes ativos'), h('span', { class: 'keep' }, h('button', { class: 'btn', onclick: () => ackAlarm('*') }, 'Reconhecer todos'))),
     h('div', { class: 'table-wrap' }, h('table', { class: 'grid' }, h('thead', {}, h('tr', {}, ['Desde', 'Prioridade', 'Mensagem', 'Tag', 'Valor', 'Estado', ''].map((c) => h('th', {}, c)))), activeBody)),
     h('div', { class: 'head' }, h('h2', { class: 'section-title' }, 'Configuração de alarmes'),
-      h('button', { class: 'btn primary', onclick: () => { p.alarms.push({ id: uid('al'), tag: p.tags[0]?.name || '', condition: '>', limit: 0, message: 'Novo alarme', priority: 'media' }); markDirty(); renderAlarms(); } }, '+ Novo alarme')),
+      h('button', { class: 'btn primary eng-only', onclick: () => { p.alarms.push({ id: uid('al'), tag: p.tags[0]?.name || '', condition: '>', limit: 0, message: 'Novo alarme', priority: 'media' }); markDirty(); renderAlarms(); } }, '+ Novo alarme')),
     h('div', { class: 'table-wrap' }, h('table', { class: 'grid' }, h('thead', {}, h('tr', {}, ['Tag', 'Condição', 'Limite', 'Mensagem', 'Prioridade', ''].map((c) => h('th', {}, c)))), cfgBody)),
     h('h2', { class: 'section-title' }, 'Histórico de eventos'),
-    h('div', { class: 'table-wrap' }, h('table', { class: 'grid' }, h('thead', {}, h('tr', {}, ['Data/hora', 'Evento', 'Prioridade', 'Mensagem', 'Valor'].map((c) => h('th', {}, c)))), histBody)));
+    h('div', { class: 'table-wrap' }, h('table', { class: 'grid' }, h('thead', {}, h('tr', {}, ['Data/hora', 'Evento', 'Prioridade', 'Mensagem', 'Valor', 'Usuário'].map((c) => h('th', {}, c)))), histBody)));
+  readOnly(alarmRoot);
   renderAlarmLists();
 }
 
@@ -270,8 +287,8 @@ function renderAlarmLists() {
   activeBody.replaceChildren(...active.map((a) => h('tr', { class: a.acked ? '' : 'unacked' },
     h('td', {}, dt(a.since)), h('td', { class: 'prio-' + a.priority }, a.priority.toUpperCase()), h('td', {}, a.message), h('td', {}, a.tag),
     h('td', { class: 'val' }, fmtVal(a.value)), h('td', {}, a.cleared ? 'Normalizado' : 'Ativo', a.acked ? ' · reconhecido' : ''),
-    h('td', {}, a.acked ? null : h('button', { class: 'btn small', onclick: () => ackAlarm(a.id) }, 'Reconhecer')))));
+    h('td', {}, a.acked || !can(LV.OPERATOR) ? null : h('button', { class: 'btn small', onclick: () => ackAlarm(a.id) }, 'Reconhecer')))));
   if (!active.length) activeBody.append(h('tr', {}, h('td', { colspan: 7, class: 'hint' }, 'Nenhum alarme ativo ✔')));
   histBody.replaceChildren(...history.map((e) => h('tr', {},
-    h('td', {}, dt(e.ts)), h('td', {}, e.event), h('td', { class: 'prio-' + e.priority }, e.priority), h('td', {}, e.message), h('td', {}, fmtVal(e.value)))));
+    h('td', {}, dt(e.ts)), h('td', {}, e.event), h('td', { class: 'prio-' + e.priority }, e.priority), h('td', {}, e.message), h('td', {}, fmtVal(e.value)), h('td', {}, e.user || ''))));
 }
