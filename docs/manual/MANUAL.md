@@ -223,7 +223,7 @@ Aba **🔌 PLCs** (nível Engenharia para alterar).
 |---|---|---|
 | Siemens S7-1200 / 1500 | S7 (porta 102, slot 1) | No TIA Portal: ligar **Permit PUT/GET** e desligar **Optimized block access** nos DBs |
 | Siemens S7-300 / 400 | S7 (slot 2 / 3) | — |
-| Allen-Bradley CompactLogix / ControlLogix | EtherNet/IP | Endereço = nome do tag no Studio 5000 |
+| Allen-Bradley CompactLogix / ControlLogix | EtherNet/IP (slot 0) | Endereço = nome do tag no Studio 5000. Timeout de 10 s (programas com muitos tags demoram para conectar) |
 | Schneider, WEG, Delta, LOGO!, Micro800, FX5U, Altus | Modbus TCP (porta 502) | Endereços HR, C, DI, IR |
 | Equipamentos RS-485 | Modbus RTU | Informe a porta COM e o baud rate |
 | Multímetro Rigol DM858 / DM858E | SCPI (porta 5025) | Ver [capítulo 8](#8-gateway-e-multímetro) |
@@ -252,7 +252,7 @@ Aba **🏷 Tags**. Cada tag é um endereço do PLC com nome.
 | Driver | Exemplos |
 |---|---|
 | Siemens S7 | `DB1,REAL0` · `DB1,INT2` · `DB1,X0.0` · `M0.0` · `MW10` · `I0.0` · `Q0.1` |
-| CompactLogix | `Motor_Run` · `Program:MainProgram.Nivel` · `Receita[3]` · `Status.5` |
+| CompactLogix | `Motor_Run` · `teste_ihm` (DINT) · `teste_ihm.0` (bit do DINT, tipo BOOL) · `Program:MainProgram.Nivel` · `Receita[3]` |
 | Modbus | `HR0` (holding) · `C0` (coil) · `DI0` · `IR0` · `HR0.3` (bit 3) · `40001` |
 | Multímetro | `READ?` · `MEAS:VOLT:DC?` · `*IDN?` |
 
@@ -405,6 +405,7 @@ Recomendado para acesso fora da rede local (de preferência junto com uma VPN).
 | **Esqueci a senha do admin** | Feche o `iniciar_ihm.bat`, apague o arquivo `data\users.json` e abra de novo: volta `admin`/`admin`. Os outros usuários são perdidos; projetos e histórico não. |
 | **Outros PCs/tablets não abrem a IHM** | Libere o Node.js no Firewall do Windows (Redes privadas). Use o IP mostrado na janela preta, com `:3000`. |
 | **"A porta 3000 já está em uso"** | Outro programa usa a porta. Edite `iniciar_ihm.bat` e troque `set PORT=3000` por outra (ex.: 3001). |
+| **CompactLogix dá "Tempo esgotado" ou "PLC desconectado"** | Aumente o **Timeout** para 10000 ms no cartão do PLC (padrão desta versão). Se ainda falhar, desmarque "Ler lista de tags do PLC ao conectar". |
 | **PLC Siemens não conecta** | Confira IP, rack/slot e se o PC "pinga" o PLC. No TIA Portal: Permit PUT/GET e DBs sem acesso otimizado. |
 | **Valor aparece riscado (cinza)** | Qualidade ruim: o PLC não respondeu ou o endereço está errado. Veja o status na aba PLCs. |
 | **Modbus mostra valor estranho em REAL/DINT** | Marque **Inverter words (CDAB)** no cartão do PLC. |

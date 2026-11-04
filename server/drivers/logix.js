@@ -20,7 +20,7 @@ class LogixDriver {
     const { Controller } = require('st-ethernet-ip');
     const cfg = this.cfg;
     if (!cfg.host) throw new Error('Informe o IP do PLC');
-    const timeout = Number(cfg.timeout) || 5000;
+    const timeout = Number(cfg.timeout) || 10000;
     const plc = new Controller(true);
     plc.timeout_sp = timeout;
     this.lost = false;

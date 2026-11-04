@@ -199,7 +199,7 @@ export function renderConnections() {
     const fields = [];
     if (c.driver === 's7') fields.push(txtF('host', 'IP do PLC', '192.168.0.1'), numF('port', 'Porta', '102'), numF('rack', 'Rack', '0'), numF('slot', 'Slot', '1'), numF('timeout', 'Timeout (ms)', '3000'));
     if (c.driver === 'scpi') fields.push(txtF('host', 'IP do instrumento', '192.168.1.50'), numF('port', 'Porta', '5025'), numF('timeout', 'Timeout (ms)', '3000'));
-    if (c.driver === 'logix') fields.push(txtF('host', 'IP do PLC', '192.168.1.10'), numF('slot', 'Slot da CPU', '0'), numF('timeout', 'Timeout (ms)', '5000'),
+    if (c.driver === 'logix') fields.push(txtF('host', 'IP do PLC', '192.168.1.10'), numF('slot', 'Slot da CPU', '0'), numF('timeout', 'Timeout (ms)', '10000'),
       h('label', { class: 'check full', title: 'Necessário para ler UDTs e STRING. Desmarque se o controlador não responder à conexão.' },
         h('input', { type: 'checkbox', checked: c.setup !== false, onchange: set('setup') }), 'Ler lista de tags do PLC ao conectar (UDT/STRING)'));
     if (c.driver === 'modbus-tcp') fields.push(txtF('host', 'IP do PLC', '192.168.0.1'), numF('port', 'Porta', '502'), numF('unitId', 'Unit ID / Escravo', '1'), numF('timeout', 'Timeout (ms)', '2000'));
