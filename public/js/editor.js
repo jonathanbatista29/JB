@@ -32,7 +32,7 @@ export function initEditor(el, { onTest }) {
   navPalette = h('div');
   palette.append(navPalette);
   palette.append(h('p', { class: 'hint', style: { marginTop: '14px' } },
-    'Atalhos: Del apaga, Ctrl+D duplica, Ctrl+C/V copia/cola, Ctrl+Z desfaz, setas movem (Shift = 10px).'));
+    'Atalhos: Del apaga, Ctrl+D duplica, Ctrl+C/V copia/cola, Ctrl+Z desfaz, setas movem (Shift = 10px). Alças nos cantos e lados redimensionam; segure Shift para manter a proporção.'));
 
   // Barra de ferramentas
   screenSel = h('select', { onchange: () => { screenId = screenSel.value; selId = null; renderAll(); } });
@@ -102,9 +102,44 @@ function makeBox(w) {
   return b;
 }
 
+// Alças de redimensionar: 4 cantos e o meio de cada lado.
+const HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 function markSel(b) {
   b.classList.add('sel');
-  b.append(h('div', { class: 'rh' }));
+  for (const d of HANDLES) b.append(h('div', { class: 'rh rh-' + d, 'data-dir': d }));
+}
+
+// Calcula o novo retângulo ao arrastar uma alça. Com Shift mantém a proporção original.
+function resizeRect(st, dir, dx, dy, keepRatio) {
+  const right = st.x + st.w, bottom = st.y + st.h, MIN = 10;
+  let x = st.x, y = st.y, w = st.w, hh = st.h;
+  if (dir.includes('e')) w = snap(right + dx) - st.x;
+  if (dir.includes('w')) { x = snap(st.x + dx); w = right - x; }
+  if (dir.includes('s')) hh = snap(bottom + dy) - st.y;
+  if (dir.includes('n')) { y = snap(st.y + dy); hh = bottom - y; }
+  if (keepRatio && st.w > 0 && st.h > 0) {
+    const r = st.w / st.h;
+    if (dir.length === 2) {
+      // canto: usa o eixo que mais mudou
+      const k = Math.max(w / st.w, hh / st.h);
+      w = st.w * k; hh = st.h * k;
+    } else if (dir === 'e' || dir === 'w') {
+      hh = w / r;
+    } else {
+      w = hh * r;
+    }
+    w = Math.max(MIN, Math.round(w)); hh = Math.max(MIN, Math.round(hh));
+    if (dir.includes('w')) x = right - w;
+    if (dir.includes('n')) y = bottom - hh;
+    // lados: cresce para os dois lados da outra dimensão, mantendo o centro
+    if (dir === 'e' || dir === 'w') y = Math.round(st.y + (st.h - hh) / 2);
+    if (dir === 'n' || dir === 's') x = Math.round(st.x + (st.w - w) / 2);
+  }
+  if (w < MIN) { if (dir.includes('w')) x = right - MIN; w = MIN; }
+  if (hh < MIN) { if (dir.includes('n')) y = bottom - MIN; hh = MIN; }
+  if (x < 0) { if (dir.includes('w')) w += x; x = 0; }
+  if (y < 0) { if (dir.includes('n')) hh += y; y = 0; }
+  return { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(hh) };
 }
 
 function refreshBox(w) {
@@ -129,7 +164,7 @@ function applyZoom() {
 function select(id) {
   if (selId === id) return;
   const prev = boxes.get(selId);
-  if (prev) { prev.classList.remove('sel'); prev.querySelector('.rh')?.remove(); }
+  if (prev) { prev.classList.remove('sel'); prev.querySelectorAll('.rh').forEach((x) => x.remove()); }
   selId = id;
   const b = boxes.get(id);
   if (b) markSel(b);
@@ -155,22 +190,27 @@ function doUndo() {
 
 // ---------- Mover / redimensionar ----------
 function onPointerDown(e) {
+  // Clicar na tela tira o foco de campos e caixas de seleção, para os atalhos (Ctrl+Z, Del, setas) voltarem a valer.
+  if (['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes(document.activeElement?.tagName) && !e.target.closest('.inline-edit')) document.activeElement.blur();
   const box = e.target.closest('.wgt');
   if (!box) { select(null); return; }
   e.preventDefault();
   const w = scr().widgets.find((x) => x.id === box.dataset.id);
   select(w.id);
-  const resize = e.target.classList.contains('rh');
+  const dir = e.target.classList.contains('rh') ? e.target.dataset.dir : null;
+  const resize = Boolean(dir);
   const start = { x: e.clientX, y: e.clientY, wx: w.x, wy: w.y, ww: w.w, wh: w.h };
-  let moved = false;
+  let moved = false, sizeTip = null;
   const move = (ev) => {
     const dx = (ev.clientX - start.x) / zoom, dy = (ev.clientY - start.y) / zoom;
     if (!moved && Math.abs(dx) + Math.abs(dy) < 3) return;
     if (!moved) { pushUndo(); moved = true; }
     const s = scr();
     if (resize) {
-      w.w = Math.max(10, snap(start.ww + dx));
-      w.h = Math.max(10, snap(start.wh + dy));
+      Object.assign(w, resizeRect({ x: start.wx, y: start.wy, w: start.ww, h: start.wh }, dir, dx, dy, ev.shiftKey));
+      if (!sizeTip) { sizeTip = h('div', { class: 'size-tip' }); screenEl.append(sizeTip); }
+      sizeTip.textContent = `${w.w} × ${w.h}${ev.shiftKey ? ' 🔒' : ''}`;
+      Object.assign(sizeTip.style, { left: w.x + 'px', top: w.y + w.h + 6 + 'px' });
     } else {
       w.x = Math.max(0, Math.min(s.width - 10, snap(start.wx + dx)));
       w.y = Math.max(0, Math.min(s.height - 10, snap(start.wy + dy)));
@@ -180,6 +220,7 @@ function onPointerDown(e) {
   const up = () => {
     window.removeEventListener('pointermove', move);
     window.removeEventListener('pointerup', up);
+    sizeTip?.remove();
     if (moved) {
       markDirty();
       if (resize) refreshBox(w);

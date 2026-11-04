@@ -132,7 +132,18 @@ svg.fill-svg { width: 100%; height: 100%; display: block; }
 .ed-stage .wgt { cursor: move; }
 .ed-stage .wgt * { pointer-events: none; }
 .ed-stage .wgt.sel { outline: 2px solid var(--accent); outline-offset: 1px; z-index: 9999; }
-.ed-stage .wgt .rh { pointer-events: auto; position: absolute; right: -6px; bottom: -6px; width: 12px; height: 12px; background: var(--accent); border: 2px solid #fff; border-radius: 2px; cursor: nwse-resize; z-index: 2; }
+.ed-stage .wgt .rh { --hs: 12px; pointer-events: auto; position: absolute; width: var(--hs); height: var(--hs); background: var(--accent); border: 2px solid #fff; border-radius: 2px; z-index: 2; touch-action: none; }
+.ed-stage .wgt .rh-nw { left: calc(var(--hs) / -2); top: calc(var(--hs) / -2); cursor: nwse-resize; }
+.ed-stage .wgt .rh-n  { left: calc(50% - var(--hs) / 2); top: calc(var(--hs) / -2); cursor: ns-resize; }
+.ed-stage .wgt .rh-ne { right: calc(var(--hs) / -2); top: calc(var(--hs) / -2); cursor: nesw-resize; }
+.ed-stage .wgt .rh-e  { right: calc(var(--hs) / -2); top: calc(50% - var(--hs) / 2); cursor: ew-resize; }
+.ed-stage .wgt .rh-se { right: calc(var(--hs) / -2); bottom: calc(var(--hs) / -2); cursor: nwse-resize; }
+.ed-stage .wgt .rh-s  { left: calc(50% - var(--hs) / 2); bottom: calc(var(--hs) / -2); cursor: ns-resize; }
+.ed-stage .wgt .rh-sw { left: calc(var(--hs) / -2); bottom: calc(var(--hs) / -2); cursor: nesw-resize; }
+.ed-stage .wgt .rh-w  { left: calc(var(--hs) / -2); top: calc(50% - var(--hs) / 2); cursor: ew-resize; }
+/* Telas de toque: alças maiores para o dedo */
+@media (pointer: coarse) { .ed-stage .wgt .rh { --hs: 22px; border-radius: 50%; } }
+.size-tip { position: absolute; z-index: 10001; background: #000d; color: #fff; font-size: 12px; padding: 2px 6px; border-radius: 4px; pointer-events: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ed-props { width: 270px; flex-shrink: 0; background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; padding: 8px 10px 30px; }
 .prop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .prop-grid .full { grid-column: 1 / -1; }
