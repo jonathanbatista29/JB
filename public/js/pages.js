@@ -84,6 +84,11 @@ export function renderTags() {
       h('td', {}, h('select', { title: 'Nível mínimo para escrever neste tag', onchange: (e) => { t.writeLevel = Number(e.target.value); markDirty(); } },
         [1, 2, 3, 4].map((l) => h('option', { value: l, selected: (Number(t.writeLevel) || 1) === l }, LEVEL_NAMES[l])))),
       h('td', {}, h('input', { type: 'text', value: t.description || '', onchange: set('description') })),
+      h('td', { class: 'log-cell', title: 'Registrar no banco de histórico. Banda morta: variação mínima para gravar.' },
+        t.type === 'string' ? '—' : [
+          h('input', { type: 'checkbox', checked: Boolean(t.log), onchange: (e) => { t.log = e.target.checked; markDirty(); } }),
+          t.type === 'bool' ? null : h('input', { type: 'number', min: 0, step: 'any', placeholder: 'banda', value: t.logDeadband ?? '', style: { width: '70px' },
+            onchange: (e) => { t.logDeadband = e.target.value === '' ? '' : Math.abs(Number(e.target.value)); markDirty(); } })]),
       valTd,
       h('td', { style: { whiteSpace: 'nowrap' } },
         t.access !== 'R' ? h('span', { class: 'keep' }, h('button', { class: 'btn small', title: 'Escrever valor', onclick: () => testWrite(t) }, '✎')) : null, ' ',
@@ -100,7 +105,7 @@ export function renderTags() {
     const list = p.tags.filter((t) => (!tagConnFilter || t.connection === tagConnFilter) &&
       (!f || t.name.toLowerCase().includes(f) || (t.description || '').toLowerCase().includes(f) || String(t.address).toLowerCase().includes(f)));
     tbody.replaceChildren(...list.map(row));
-    if (!list.length) tbody.append(h('tr', {}, h('td', { colspan: 9, class: 'hint' }, 'Nenhum tag.')));
+    if (!list.length) tbody.append(h('tr', {}, h('td', { colspan: 10, class: 'hint' }, 'Nenhum tag.')));
     readOnly(tbody);
   }
 
@@ -119,10 +124,10 @@ export function renderTags() {
   renderRows();
   tagsRoot.replaceChildren(
     h('div', { class: 'head' }, h('h2', {}, `Tags (${p.tags.length})`), filterIn, connSel, h('button', { class: 'btn primary eng-only', onclick: addTag }, '+ Novo tag')),
-    can(LV.ENG) ? null : h('div', { class: 'note' }, 'Modo leitura: só Engenharia altera tags. Você pode ver os valores e escrever valores de teste (✎).'),
+    can(LV.ENG) ? '' : h('div', { class: 'note' }, 'Modo leitura: só Engenharia altera tags. Você pode ver os valores e escrever valores de teste (✎).'),
     ...usedDrivers.map((d) => h('div', { class: 'note' }, ADDRESS_HELP[d] || '')),
     h('div', { class: 'table-wrap' }, h('table', { class: 'grid' },
-      h('thead', {}, h('tr', {}, ['Nome', 'Conexão', 'Endereço', 'Tipo', 'Acesso', 'Escrita mín.', 'Descrição', 'Valor', ''].map((c) => h('th', {}, c)))),
+      h('thead', {}, h('tr', {}, ['Nome', 'Conexão', 'Endereço', 'Tipo', 'Acesso', 'Escrita mín.', 'Descrição', 'Histórico', 'Valor', ''].map((c) => h('th', {}, c)))),
       tbody)),
     h('p', { class: 'hint' }, 'Tags novos ou alterados começam a ser lidos depois de clicar em "Salvar".'));
   readOnly(tagsRoot);
@@ -228,7 +233,7 @@ export function renderConnections() {
 
   connRoot.replaceChildren(
     h('div', { class: 'head' }, h('h2', {}, 'PLCs / Conexões'), h('button', { class: 'btn primary eng-only', onclick: add }, '+ Novo PLC')),
-    can(LV.ENG) ? null : h('div', { class: 'note' }, 'Modo leitura: só Engenharia altera as conexões.'),
+    can(LV.ENG) ? '' : h('div', { class: 'note' }, 'Modo leitura: só Engenharia altera as conexões.'),
     h('p', { class: 'hint' }, 'Escolha o modelo, preencha o IP e clique em "Salvar" no topo para conectar. O status atualiza em tempo real.'),
     h('div', { class: 'cards' }, p.connections.map(card)));
   readOnly(connRoot);
@@ -274,7 +279,8 @@ export function renderAlarms() {
     h('div', { class: 'head' }, h('h2', { class: 'section-title' }, 'Configuração de alarmes'),
       h('button', { class: 'btn primary eng-only', onclick: () => { p.alarms.push({ id: uid('al'), tag: p.tags[0]?.name || '', condition: '>', limit: 0, message: 'Novo alarme', priority: 'media' }); markDirty(); renderAlarms(); } }, '+ Novo alarme')),
     h('div', { class: 'table-wrap' }, h('table', { class: 'grid' }, h('thead', {}, h('tr', {}, ['Tag', 'Condição', 'Limite', 'Mensagem', 'Prioridade', ''].map((c) => h('th', {}, c)))), cfgBody)),
-    h('h2', { class: 'section-title' }, 'Histórico de eventos'),
+    h('div', { class: 'head' }, h('h2', { class: 'section-title' }, 'Últimos eventos'),
+      h('button', { class: 'btn small keep', onclick: () => document.querySelector('[data-page=history]').click() }, 'Ver histórico completo →')),
     h('div', { class: 'table-wrap' }, h('table', { class: 'grid' }, h('thead', {}, h('tr', {}, ['Data/hora', 'Evento', 'Prioridade', 'Mensagem', 'Valor', 'Usuário'].map((c) => h('th', {}, c)))), histBody)));
   readOnly(alarmRoot);
   renderAlarmLists();

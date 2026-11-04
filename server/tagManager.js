@@ -175,7 +175,9 @@ class TagManager extends EventEmitter {
   }
 
   log(al, event, value, user) {
-    this.history.unshift({ ts: Date.now(), event, message: al.message, tag: al.tag, value, priority: al.priority || 'media', user: user || '' });
+    const e = { ts: Date.now(), event, message: al.message, tag: al.tag, value, priority: al.priority || 'media', user: user || '' };
+    this.history.unshift(e);
+    this.emit('alarmEvent', e);
     if (this.history.length > HISTORY_MAX) this.history.length = HISTORY_MAX;
   }
 

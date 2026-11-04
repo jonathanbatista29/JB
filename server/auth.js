@@ -21,6 +21,7 @@ const SESSION_TTL = 12 * 60 * 60 * 1000; // sessão expira após 12 h sem uso
 const COOKIE = 'jbihm_session';
 
 let db = null;
+let sink = null; // banco de histórico (registro de ações)
 const sessions = new Map(); // token -> { username, last }
 const failures = new Map(); // ip -> { count, until }
 let audit = [];
@@ -50,10 +51,18 @@ function load() {
     else db.users.push({ username: 'admin', name: 'Administrador', level: 4, enabled: true, mustChange: true, ...hashPassword('admin') });
     save();
   }
+}
+
+// Passa o registro de ações para o banco. Um audit.log antigo é importado uma vez e renomeado.
+function setAuditSink(historian) {
+  sink = historian;
+  if (!fs.existsSync(AUDIT_FILE)) return;
   try {
-    audit = fs.readFileSync(AUDIT_FILE, 'utf8').trim().split('\n').slice(-500).filter(Boolean).map((l) => JSON.parse(l)).reverse();
-  } catch {
-    audit = [];
+    const lines = fs.readFileSync(AUDIT_FILE, 'utf8').trim().split('\n').filter(Boolean);
+    for (const l of lines) { try { sink.addAudit(JSON.parse(l)); } catch {} }
+    fs.renameSync(AUDIT_FILE, AUDIT_FILE + '.importado');
+  } catch (e) {
+    console.error('Falha ao importar audit.log:', e.message);
   }
 }
 
@@ -66,12 +75,9 @@ function save() {
 
 function log(user, action, detail = '') {
   const e = { ts: Date.now(), user: user || '(sem login)', action, detail: String(detail) };
+  if (sink) return sink.addAudit(e);
   audit.unshift(e);
   if (audit.length > 500) audit.length = 500;
-  try {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.appendFileSync(AUDIT_FILE, JSON.stringify(e) + '\n');
-  } catch {}
 }
 
 const publicUser = (u) => u && { username: u.username, name: u.name || u.username, level: u.level, levelName: levelName(u.level), mustChange: Boolean(u.mustChange) };
@@ -235,6 +241,7 @@ function updateSettings(by, { guestLevel, idleMinutes }) {
 
 module.exports = {
   LEVELS, levelName, load, log, login, logout, sessionFrom, levelOf, publicUser, changePassword,
-  listUsers, createUser, updateUser, deleteUser, getSettings, updateSettings, getAudit: () => audit.slice(0, 300),
+  listUsers, createUser, updateUser, deleteUser, getSettings, updateSettings, setAuditSink,
+  getAudit: (q = {}) => (sink ? sink.audit({ limit: 300, ...q }) : audit.slice(0, 300)),
   isSessionAlive: (token) => sessions.has(token),
 };

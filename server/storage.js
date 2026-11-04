@@ -10,6 +10,10 @@ function normalize(p) {
   const out = typeof p === 'object' && p ? p : {};
   out.name = String(out.name || 'Projeto IHM');
   for (const k of ['connections', 'tags', 'screens', 'alarms']) if (!Array.isArray(out[k])) out[k] = [];
+  out.historian = {
+    retentionDays: Math.min(3650, Math.max(1, Number(out.historian?.retentionDays) || 90)),
+    heartbeatSec: Math.min(3600, Math.max(1, Number(out.historian?.heartbeatSec) || 60)),
+  };
   if (!out.screens.length) out.screens.push({ id: 'tela1', name: 'Principal', width: 1024, height: 600, bg: '#1e2530', widgets: [] });
   for (const s of out.screens) if (!Array.isArray(s.widgets)) s.widgets = [];
   const names = new Set();

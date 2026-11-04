@@ -1,7 +1,7 @@
 // Biblioteca de objetos de tela (widgets).
 // Cada widget define: nome, ícone, tamanho padrão, propriedades editáveis e render().
 // render(w, rt) devolve o elemento; el._update() é chamado quando os valores mudam.
-import { h, tagValue, tagQuality, findTag, writeTag, keypad, confirmBox, can, emit, tagWriteLevel, LV, LEVEL_NAMES } from './state.js';
+import { h, api, tagValue, tagQuality, findTag, writeTag, keypad, confirmBox, can, emit, tagWriteLevel, LV, LEVEL_NAMES } from './state.js';
 
 const num = (v, d = 0) => (Number.isFinite(Number(v)) && v !== '' && v != null ? Number(v) : d);
 const fmt = (v, dec) => {
@@ -322,7 +322,7 @@ export const WIDGETS = {
     name: 'Gráfico de tendência', icon: '📈', size: [480, 260], group: 'Indicadores',
     defaults: { tags: '', min: 0, max: 100, seconds: 60 },
     props: [{ key: 'tags', label: 'Tags (separados por vírgula)', kind: 'text', full: true }, P.min, P.max, { key: 'seconds', label: 'Janela (segundos)', kind: 'number' }],
-    render(w) {
+    render(w, rt) {
       const p = w.props;
       const colors = ['#2d8cff', '#f39c12', '#2ecc71', '#e74c3c', '#9b59b6', '#1abc9c'];
       const tags = String(p.tags || '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -331,6 +331,7 @@ export const WIDGETS = {
         h('div', { class: 'legend' }, tags.map((t, i) => h('span', {}, h('i', { style: { background: colors[i % colors.length] } }), t))));
       const win = num(p.seconds, 60) * 1000, min = num(p.min), max = num(p.max, 100);
       tags.forEach((t) => trendTags.add(t));
+      if (rt.runtime) prefillTrend(tags.filter((t) => findTag(t)?.log), win);
       const sample = () => draw(Date.now());
       const draw = (now) => {
         const W = canvas.clientWidth, H = canvas.clientHeight;
@@ -385,6 +386,26 @@ setInterval(() => {
     trendBuf.set(t, arr);
   }
 }, 500);
+
+// Ao abrir a tela, completa o gráfico com o que já está no banco de histórico.
+const prefilled = new Map(); // tag -> início já carregado
+async function prefillTrend(tags, win) {
+  const from = Date.now() - win;
+  const need = tags.filter((t) => !(prefilled.get(t) <= from));
+  if (!need.length) return;
+  need.forEach((t) => prefilled.set(t, from));
+  try {
+    const r = await api(`api/history?tags=${encodeURIComponent(need.join(','))}&from=${from}&points=600`);
+    for (const t of need) {
+      const cur = trendBuf.get(t) || [];
+      const first = cur.length ? cur[0][0] : Infinity;
+      const old = (r.series[t] || []).filter((p) => p[0] < first).map((p) => [p[0], p[1]]);
+      trendBuf.set(t, [...old, ...cur]);
+    }
+  } catch {
+    need.forEach((t) => prefilled.delete(t));
+  }
+}
 
 const SYMBOLS = {
   motor: `<rect x="10" y="78" width="80" height="10" rx="2" fill="#4a5568"/><circle class="sf" cx="50" cy="45" r="34" stroke="#cfd8e3" stroke-width="3"/>

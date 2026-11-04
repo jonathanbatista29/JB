@@ -207,3 +207,21 @@ body.locked main, body.locked .tabs, body.locked .top-actions > :not(#userBox) {
 tr.disabled-row td { opacity: .55; }
 input:disabled, select:disabled, textarea:disabled, button:disabled { opacity: .6; cursor: not-allowed; }
 @media (max-width: 800px) { .user-name, .lvl-badge { display: none; } }
+
+/* ---------- Histórico ---------- */
+.subtabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.subtabs button { background: var(--panel2); border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 12px; cursor: pointer; }
+.subtabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.hist-body { display: flex; flex-direction: column; gap: 12px; }
+.hist-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.hist-controls select, .hist-controls input[type=datetime-local] { width: auto; }
+input[type=datetime-local] { background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 4px 6px; }
+.custom-range { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.tag-picker { display: flex; flex-wrap: wrap; gap: 6px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 12px; }
+.hist-chart { position: relative; height: 420px; background: #0d1117; border: 1px solid var(--line); border-radius: var(--radius); }
+.hist-canvas { width: 100%; height: 100%; display: block; cursor: crosshair; touch-action: none; }
+.hist-tip { position: absolute; top: 10px; min-width: 170px; background: #1a212cee; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: 12px; pointer-events: none; display: flex; flex-direction: column; gap: 2px; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+.log-cell { white-space: nowrap; }
+.log-cell input[type=checkbox] { vertical-align: middle; margin-right: 6px; }
+@media (max-width: 800px) { .hist-chart { height: 300px; } }

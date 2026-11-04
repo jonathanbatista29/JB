@@ -7,6 +7,7 @@ const storage = require('./storage');
 const models = require('./models');
 const auth = require('./auth');
 const { TagManager } = require('./tagManager');
+const { Historian } = require('./historian');
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -15,12 +16,18 @@ const HOST = process.env.HOST || '0.0.0.0';
 const LV = { VIEW: 0, OPERATOR: 1, MAINT: 2, ENG: 3, ADMIN: 4 };
 
 auth.load();
+const hist = new Historian();
+auth.setAuditSink(hist);
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 const tm = new TagManager();
 let project = storage.load();
+hist.configure(project);
+tm.history = hist.alarms({ limit: 200 }); // histórico de alarmes sobrevive ao reinício
+tm.on('values', (v) => hist.onValues(v));
+tm.on('alarmEvent', (e) => hist.addAlarm(e));
 tm.load(project);
 
 // Anexa a sessão em toda requisição da API.
@@ -69,6 +76,7 @@ app.use('/api', mustChangeBlock);
 app.get('/api/project', need(LV.VIEW), (req, res) => res.json(project));
 app.put('/api/project', need(LV.ENG), wrap(async (req) => {
   project = storage.save(req.body);
+  hist.configure(project);
   await tm.load(project);
   auth.log(req.who, 'Salvou o projeto', `${project.screens.length} tela(s), ${project.tags.length} tag(s)`);
 }));
@@ -83,7 +91,43 @@ app.put('/api/users/:username', need(LV.ADMIN), wrap((req) => { auth.updateUser(
 app.delete('/api/users/:username', need(LV.ADMIN), wrap((req) => { auth.deleteUser(req.who, req.params.username); refreshSockets(); }));
 app.get('/api/settings', need(LV.ADMIN), (req, res) => res.json(auth.getSettings()));
 app.put('/api/settings', need(LV.ADMIN), wrap((req) => { auth.updateSettings(req.who, req.body); refreshSockets(); }));
-app.get('/api/audit', need(LV.ADMIN), (req, res) => res.json(auth.getAudit()));
+app.get('/api/audit', need(LV.ADMIN), (req, res) => res.json(auth.getAudit(range(req, Infinity))));
+
+// ---------- Histórico ----------
+// Período: ?from=&to= em milissegundos (padrão: última hora).
+function range(req, span = 60 * 60 * 1000) {
+  const to = Number(req.query.to) || Date.now();
+  const from = Number(req.query.from) || Math.max(0, to - span);
+  if (from >= to) throw new Error('Período inválido');
+  return { from, to, text: String(req.query.text || ''), limit: Math.min(5000, Number(req.query.limit) || 1000) };
+}
+const tagList = (req) => String(req.query.tags || '').split(',').map((t) => t.trim()).filter(Boolean).slice(0, 12);
+
+app.get('/api/history', need(LV.VIEW), wrap((req) => {
+  const { from, to } = range(req);
+  return hist.series(tagList(req), from, to, Math.min(4000, Number(req.query.points) || 1000));
+}));
+app.get('/api/history.csv', need(LV.VIEW), (req, res) => {
+  try {
+    const { from, to } = range(req);
+    const rows = hist.raw(tagList(req), from, to);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="historico_${new Date(from).toISOString().slice(0, 10)}.csv"`);
+    res.write('\ufeffdata_hora;tag;valor;qualidade\n');
+    for (const r of rows) res.write(`${csvDate(r.ts)};${r.tag};${r.v == null ? '' : String(r.v).replace('.', ',')};${r.q ? 'boa' : 'ruim'}\n`);
+    res.end();
+    auth.log(req.who, 'Exportou histórico', `${tagList(req).join(', ')} (${rows.length} linhas)`);
+  } catch (e) {
+    res.status(400).json({ ok: false, error: e.message });
+  }
+});
+app.get('/api/alarm-history', need(LV.VIEW), wrap((req) => hist.alarms(range(req, Infinity))));
+app.get('/api/history/stats', need(LV.VIEW), (req, res) => res.json(hist.stats()));
+
+function csvDate(ts) {
+  const d = new Date(ts), p = (n, l = 2) => String(n).padStart(l, '0');
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}`;
+}
 
 // Escrita em tag: confere o nível mínimo do tag (padrão: operador).
 async function doWrite(level, who, tagName, value) {
@@ -150,6 +194,9 @@ wss.on('connection', (ws, req) => {
     }
   });
 });
+
+// Grava o que estiver pendente antes de encerrar.
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { try { hist.close(); } catch {} process.exit(0); });
 
 server.listen(PORT, HOST, () => {
   console.log(`JB IHM rodando em http://localhost:${PORT}`);

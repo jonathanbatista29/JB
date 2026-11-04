@@ -20,12 +20,14 @@ em PC, tablet ou celular.
 - **Alarmes**: condições por tag, prioridade, faixa de alarme no rodapé, reconhecimento e histórico.
 - **Login com níveis de acesso** (Operador, Manutenção, Engenharia, Administrador), logout automático por
   inatividade, nível mínimo por objeto de tela e por tag, e registro de ações (quem fez o quê e quando).
+- **Histórico em banco de dados (SQLite)**: valores dos tags, eventos de alarme e registro de ações,
+  com gráfico por período, zoom, resumo (mín./média/máx.) e exportação CSV.
 - Leitura otimizada (agrupa endereços Modbus em blocos), reconexão automática.
 - Exportar/importar projeto em JSON.
 
 ## Como rodar
 
-Requisito: [Node.js](https://nodejs.org) 18 ou superior.
+Requisito: [Node.js](https://nodejs.org) 22.13 ou superior (o banco SQLite já vem embutido no Node).
 
 ```bash
 npm install
@@ -60,9 +62,22 @@ No primeiro uso entre com **usuário `admin` e senha `admin`**. O sistema obriga
 - As permissões são verificadas no servidor, não só na tela.
 - Cada tag tem um "nível mínimo para escrever"; cada botão/chave/entrada pode exigir um nível maior.
 - Objetos bloqueados aparecem com 🔒; ao tocar, a IHM pede login.
-- Usuários e registro de ações ficam em `data/users.json` e `data/audit.log` (fora do projeto exportado).
+- Usuários ficam em `data/users.json` e o registro de ações no banco `data/historico.db` (fora do projeto exportado).
 - Esqueceu a senha do admin? Pare o servidor e apague `data/users.json`: o usuário `admin`/`admin` é recriado
   (os outros usuários serão perdidos).
+
+## Histórico
+
+O histórico fica no arquivo `data/historico.db` (SQLite), que pode ser aberto com qualquer ferramenta SQLite
+(ex.: DB Browser for SQLite).
+
+- **O que registrar**: na aba Tags, marque a coluna "Histórico". A "banda morta" é a variação mínima para gravar
+  (ex.: 0,1 °C), o que economiza espaço.
+- **Quando grava**: sempre que o valor muda além da banda morta e, no mínimo, a cada 60 s (configurável).
+- **Por quanto tempo**: 90 dias por padrão (Histórico → Configuração). O registro de ações é guardado por no mínimo 1 ano.
+- **Consulta**: aba 📊 Histórico — escolha os tags e o período, arraste no gráfico para ampliar e exporte em CSV
+  (abre direto no Excel). A aba Alarmes mostra todos os eventos com filtro e exportação.
+- O gráfico de tendência das telas já abre com os dados do banco.
 
 ## Endereços
 
@@ -85,6 +100,7 @@ No primeiro uso entre com **usuário `admin` e senha `admin`**. O sistema obriga
 server/            servidor Node.js
   index.js         HTTP + WebSocket
   auth.js          usuários, sessões e registro de ações
+  historian.js     histórico em banco SQLite
   tagManager.js    leitura cíclica, escrita e alarmes
   drivers/         simulator, modbus (TCP/RTU), s7, logix (CompactLogix)
   models.js        modelos de PLC pré-configurados
@@ -93,11 +109,10 @@ public/            interface web (sem build)
   js/runtime.js    modo operação
   js/widgets.js    objetos de tela
   js/pages.js      Tags, PLCs e Alarmes
-data/project.json  projeto salvo (criado ao salvar)
+data/              project.json (projeto), users.json (usuários), historico.db (histórico)
 ```
 
 ## Próximos passos sugeridos
 
-- Histórico de tendências em banco de dados
 - Drivers Omron FINS, OPC UA
 - Receitas e relatórios
