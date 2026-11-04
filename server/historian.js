@@ -46,7 +46,7 @@ class Historian {
     this.flushTimer = setInterval(() => this.flush(), 1000);
     this.beatTimer = setInterval(() => this.heartbeat(), 1000);
     this.purgeTimer = setInterval(() => this.purge(), 6 * 60 * 60 * 1000);
-    setTimeout(() => this.purge(), 10000);
+    this.firstPurge = setTimeout(() => this.purge(), 10000);
   }
 
   // Aplica a configuração do projeto: quais tags registrar e por quanto tempo guardar.
@@ -98,7 +98,7 @@ class Historian {
   }
 
   flush() {
-    if (!this.buf.length) return;
+    if (this.closed || !this.buf.length) return;
     const rows = this.buf;
     this.buf = [];
     try {
@@ -112,6 +112,7 @@ class Historian {
   }
 
   purge() {
+    if (this.closed) return;
     const days = Number(this.cfg.retentionDays) || DEFAULTS.retentionDays;
     const limit = Date.now() - days * DAY;
     try {
@@ -201,7 +202,9 @@ class Historian {
     clearInterval(this.flushTimer);
     clearInterval(this.beatTimer);
     clearInterval(this.purgeTimer);
+    clearTimeout(this.firstPurge);
     this.flush();
+    this.closed = true;
     this.db.close();
   }
 }

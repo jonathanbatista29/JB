@@ -6,6 +6,7 @@ const { TagManager } = require('./tagManager');
 const { Historian } = require('./historian');
 const { Navigator } = require('./navigator');
 const { Gateway } = require('./gateway');
+const { DatabaseSync } = require('node:sqlite');
 
 // Vários projetos (IHMs) no mesmo servidor. Cada um fica em data/projects/<endereço>/ e roda
 // com as próprias conexões, histórico, alarmes e gateway. Endereço na web: http://IP:porta/<endereço>/
@@ -80,6 +81,27 @@ class ProjectRuntime {
       connections: p.connections.map((c) => ({ id: c.id, name: c.name, state: this.tm.status[c.id]?.state || 'idle', error: this.tm.status[c.id]?.error || null })),
       activeAlarms: Object.keys(this.tm.active).length, clients: this.clients.size,
     };
+  }
+
+  // Troca o banco de histórico pelo arquivo `src` (backup .db). O banco atual é guardado como
+  // historico_antes_<data>.db na pasta do projeto (os 3 últimos) para poder voltar.
+  replaceHistory(src) {
+    checkHistoryFile(src);
+    const dbf = path.join(this.dir, 'historico.db');
+    try { this.hist.flush(); this.hist.db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch {}
+    this.hist.close();
+    const stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
+    const kept = path.join(this.dir, `historico_antes_${stamp}.db`);
+    if (fs.existsSync(dbf)) fs.renameSync(dbf, kept);
+    for (const ext of ['-wal', '-shm']) if (fs.existsSync(dbf + ext)) fs.rmSync(dbf + ext);
+    const old = fs.readdirSync(this.dir).filter((f) => /^historico_antes_.*\.db$/.test(f)).sort().reverse().slice(3);
+    for (const f of old) fs.rmSync(path.join(this.dir, f));
+    fs.copyFileSync(src, dbf);
+    this.hist = new Historian(dbf);
+    this.hist.configure(this.project);
+    this.tm.history = this.hist.alarms({ limit: 200 });
+    this.tm.emit('alarms');
+    return { kept: fs.existsSync(kept) ? path.basename(kept) : null };
   }
 
   async stop() {
@@ -177,6 +199,22 @@ class ProjectManager {
   }
 }
 
+// Confere se o arquivo é um banco de histórico da JB IHM (SQLite com as tabelas de amostras).
+function checkHistoryFile(file) {
+  const fd = fs.openSync(file, 'r');
+  const head = Buffer.alloc(16);
+  fs.readSync(fd, head, 0, 16, 0);
+  fs.closeSync(fd);
+  if (head.toString('latin1') !== 'SQLite format 3\u0000') throw new Error('O arquivo não é um banco SQLite (.db)');
+  const db = new DatabaseSync(file, { readOnly: true });
+  try {
+    const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((r) => r.name));
+    for (const t of ['samples', 'tag_names', 'alarm_events']) if (!tables.has(t)) throw new Error('O arquivo não é um histórico da JB IHM (falta a tabela ' + t + ')');
+  } finally {
+    db.close();
+  }
+}
+
 function loadMode(dir) {
   try {
     const m = JSON.parse(fs.readFileSync(path.join(dir, 'estado.json'), 'utf8'));
@@ -190,4 +228,4 @@ function emptyProject() {
     screens: [{ id: 'tela1', number: 1, name: 'Principal', width: 1024, height: 600, bg: '#1e2530', widgets: [] }] };
 }
 
-module.exports = { ProjectManager, slugify, PROJECTS_DIR, RESERVED };
+module.exports = { ProjectManager, slugify, checkHistoryFile, PROJECTS_DIR, RESERVED };

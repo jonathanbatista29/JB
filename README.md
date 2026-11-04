@@ -92,6 +92,33 @@ Cada projeto tem um modo, mostrado no topo (✎ EDIÇÃO / ● PRODUÇÃO):
 - A tela inicial também pode ser marcada no Editor (propriedades da tela → "★ Tela inicial").
 - O modo pode ser trocado na lista de projetos e fica registrado no registro de ações.
 
+### Backup automático diário
+
+Na lista de projetos, **⏰ Backup automático** (administrador): ligue, escolha o **horário**, a **pasta**
+(ex.: `D:\Backups\IHM` ou uma pasta de rede) e a **quantidade de cópias** guardadas. Cada backup é uma pasta
+`jbihm_AAAA-MM-DD_HH-MM-SS` com todos os projetos (configuração e imagens), o histórico de cada projeto
+(opcional) e os usuários. As cópias mais antigas são apagadas sozinhas. Se o computador estiver desligado no
+horário, o backup é feito assim que o servidor ligar. Também há **"Fazer backup agora"** e **Restaurar**
+(projetos e, se quiser, o histórico).
+
+### Restaurar o histórico
+
+No cartão do projeto, **⬆ Restaurar histórico (.db)** envia um arquivo de histórico (baixado com
+"⬇ Histórico (.db)" ou de um backup automático). O histórico atual é guardado na pasta do projeto como
+`historico_antes_<data>.db` (os 3 últimos). Só no modo edição.
+
+### HTTPS (acesso seguro)
+
+Na lista de projetos, **🔒 HTTPS** (administrador):
+1. **Gerar certificado autoassinado** (inclui o nome do computador e os IPs; dá para acrescentar o domínio ou IP
+   público) ou **usar certificado próprio** (PEM, ex.: da empresa ou Let's Encrypt).
+2. Marque **Ligar HTTPS** (porta padrão 3443) e salve. Opcional: **redirecionar HTTP para HTTPS**.
+3. Com certificado autoassinado o navegador avisa na primeira vez; para tirar o aviso, baixe o certificado e
+   instale nos aparelhos como autoridade confiável.
+
+Para acessar **fora da rede local**, o mais seguro é uma **VPN**. Se for abrir a porta no roteador, use
+HTTPS, senhas fortes e deixe "Acesso sem login" como **Bloqueado** (aba Usuários).
+
 Usuários e níveis de acesso valem para todos os projetos (um login só). O registro de ações mostra em qual
 projeto cada ação aconteceu. Uma instalação antiga (um projeto só) é convertida sozinha na primeira vez.
 
@@ -222,6 +249,8 @@ server/            servidor Node.js
   navigator.js     troca de tela pelo PLC
   gateway.js       cópia de valores entre equipamentos
   images.js        imagens das telas
+  autobackup.js    backup automático diário
+  https.js         HTTPS (certificado e servidor seguro)
   tagManager.js    leitura cíclica, escrita e alarmes
   drivers/         simulator, modbus (TCP/RTU), s7, logix (CompactLogix), scpi (multímetro)
   models.js        modelos de PLC pré-configurados
@@ -235,6 +264,8 @@ data/
   projects/<endereço>/  project.json, backups/ (versões), imagens/, historico.db, estado.json (modo)
   users.json            usuários
   sistema.db            registro de ações
+  backup-auto.json      configuração do backup automático (cópias em backups-auto/ ou na pasta escolhida)
+  https/                certificado e configuração do HTTPS
   lixeira/              projetos excluídos
 ```
 

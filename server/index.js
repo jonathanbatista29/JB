@@ -11,6 +11,8 @@ const auth = require('./auth');
 const { Historian } = require('./historian');
 const { ProjectManager } = require('./projects');
 const images = require('./images');
+const { AutoBackup } = require('./autobackup');
+const { HttpsManager } = require('./https');
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -27,8 +29,12 @@ auth.setAuditSink(systemHist);
 
 const pm = new ProjectManager();
 pm.start({ systemHistorian: systemHist });
+const autoBackup = new AutoBackup(pm, { log: (who, action, detail) => auth.log(who || '(sistema)', action, detail) });
+autoBackup.start();
+let httpsMgr = null; // criado depois do WebSocket (precisa do mesmo tratamento de upgrade)
 
 const app = express();
+app.use((req, res, next) => (httpsMgr ? httpsMgr.redirectMiddleware()(req, res, next) : next()));
 app.use(express.json({ limit: '80mb' })); // backups levam as imagens junto
 
 // ---------- Utilidades ----------
@@ -173,22 +179,107 @@ root.get('/backup', need(LV.ADMIN), wrap((req, res) => {
 
 root.post('/backup/restore', need(LV.ADMIN), wrap(async (req) => {
   const b = req.body || {};
-  if (b.jbihm !== 'backup' || !Array.isArray(b.projects)) throw new Error('Arquivo não é um backup geral da JB IHM');
+  const out = await restoreBundle(b, Boolean(b.overwrite), req.who);
+  return { ok: true, created: out.created.map((c) => c.slug), replaced: out.replaced };
+}));
+
+// Restaura um backup geral (arquivo enviado ou backup automático). Devolve o que foi criado/substituído.
+async function restoreBundle(b, overwrite, who) {
+  if (b?.jbihm !== 'backup' || !Array.isArray(b.projects)) throw new Error('Arquivo não é um backup geral da JB IHM');
   const out = { created: [], replaced: [] };
   for (const item of b.projects) {
     const rt = pm.get(item.slug);
-    if (rt && b.overwrite) { images.importAll(rt.dir, item.images); await rt.apply(item.project); out.replaced.push(item.slug); }
-    else {
+    if (rt && overwrite) {
+      images.importAll(rt.dir, item.images);
+      await rt.apply(item.project);
+      out.replaced.push(item.slug);
+    } else {
       const name = (item.project?.name || item.slug) + (rt ? ' (restaurado)' : '');
       const nrt = pm.create(name, item.project, item.slug);
       images.importAll(nrt.dir, item.images);
-      out.created.push(nrt.slug);
+      out.created.push({ from: item.slug, slug: nrt.slug });
     }
   }
-  auth.log(req.who, 'Restaurou backup geral', `novos: ${out.created.join(', ') || '-'}; substituídos: ${out.replaced.join(', ') || '-'}`);
+  auth.log(who, 'Restaurou backup geral', `novos: ${out.created.map((c) => c.slug).join(', ') || '-'}; substituídos: ${out.replaced.join(', ') || '-'}`);
   refreshSockets();
-  return { ok: true, ...out };
+  return out;
+}
+
+// ---------- Restaurar histórico (.db) de um projeto ----------
+root.post('/projects/:slug/history-db', need(LV.ENG), blockInProduction, wrap(async (req) => {
+  const rt = rtOf(req.params.slug);
+  const tmp = path.join(os.tmpdir(), `jbihm_upload_${process.pid}_${Date.now()}.db`);
+  const MAX = 2 * 1024 * 1024 * 1024;
+  try {
+    await new Promise((resolve, reject) => {
+      let size = 0;
+      const out = fs.createWriteStream(tmp);
+      req.on('data', (c) => { size += c.length; if (size > MAX) { req.destroy(); reject(new Error('Arquivo maior que 2 GB')); } });
+      req.on('error', reject);
+      out.on('error', reject);
+      out.on('finish', resolve);
+      req.pipe(out);
+    });
+    const r = rt.replaceHistory(tmp);
+    auth.log(req.who, 'Restaurou histórico', `/${rt.slug}/ (anterior guardado como ${r.kept || '-'})`);
+    return { ok: true, ...r };
+  } finally {
+    fs.rm(tmp, { force: true }, () => {});
+  }
 }));
+
+// ---------- Backup automático diário ----------
+root.get('/auto-backup', need(LV.ADMIN), (req, res) => res.json({ ...autoBackup.settings(), backups: autoBackup.list() }));
+root.put('/auto-backup', need(LV.ADMIN), wrap((req) => {
+  const s = autoBackup.update(req.body || {});
+  auth.log(req.who, 'Configurou backup automático', `${s.enabled ? 'ligado' : 'desligado'}, ${s.time}, ${s.keep} cópia(s), pasta ${s.folderPath}`);
+  return s;
+}));
+root.post('/auto-backup/run', need(LV.ADMIN), wrap((req) => autoBackup.run('manual', req.who)));
+root.post('/auto-backup/:name/restore', need(LV.ADMIN), wrap(async (req) => {
+  const { overwrite = false, history = false } = req.body || {};
+  const bundle = JSON.parse(fs.readFileSync(autoBackup.bundlePath(req.params.name), 'utf8'));
+  const out = await restoreBundle(bundle, overwrite, req.who);
+  const hist = [];
+  if (history) {
+    const targets = [...out.replaced.map((s) => ({ from: s, slug: s })), ...out.created];
+    for (const t of targets) {
+      const f = autoBackup.historyPath(req.params.name, t.from);
+      const rt = pm.get(t.slug);
+      if (!f || !rt) continue;
+      if (rt.mode.mode === 'production') { hist.push(`${t.slug}: em produção, histórico não restaurado`); continue; }
+      rt.replaceHistory(f);
+      hist.push(t.slug);
+    }
+    auth.log(req.who, 'Restaurou histórico do backup automático', `${req.params.name}: ${hist.join(', ') || '-'}`);
+  }
+  return { ok: true, created: out.created.map((c) => c.slug), replaced: out.replaced, history: hist };
+}));
+
+// ---------- HTTPS ----------
+root.get('/https', need(LV.ADMIN), (req, res) => res.json(httpsMgr.status()));
+root.put('/https', need(LV.ADMIN), wrap(async (req) => {
+  const s = await httpsMgr.update(req.body || {});
+  auth.log(req.who, 'Configurou HTTPS', `${s.enabled ? 'ligado' : 'desligado'}, porta ${s.port}${s.redirect ? ', redireciona HTTP' : ''}`);
+  return s;
+}));
+root.post('/https/generate', need(LV.ADMIN), wrap(async (req) => {
+  const s = await httpsMgr.generate(Array.isArray(req.body?.hosts) ? req.body.hosts : []);
+  auth.log(req.who, 'Gerou certificado HTTPS', s.cert?.altNames || '');
+  return s;
+}));
+root.post('/https/cert', need(LV.ADMIN), wrap(async (req) => {
+  const s = await httpsMgr.setCustom(String(req.body?.cert || ''), String(req.body?.key || ''));
+  auth.log(req.who, 'Instalou certificado HTTPS próprio', s.cert?.subject || '');
+  return s;
+}));
+// Certificado público, para instalar nos tablets/PCs e o navegador confiar (não contém a chave privada).
+root.get('/https/cert.crt', (req, res) => {
+  const pem = httpsMgr.publicCert();
+  if (!pem) return res.status(404).json({ ok: false, error: 'Sem certificado' });
+  download(res, 'jbihm.crt', 'application/x-x509-ca-cert');
+  res.send(pem);
+});
 
 app.use('/api', root);
 
@@ -313,12 +404,15 @@ app.use((req, res) => {
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
 
-server.on('upgrade', (req, socket, head) => {
+function onUpgrade(req, socket, head) {
   const m = String(req.url).match(/^\/([^/?#]+)\/ws(?:[?#]|$)/);
   const rt = m && pm.get(decodeURIComponent(m[1]));
   if (!rt) { socket.destroy(); return; }
   wss.handleUpgrade(req, socket, head, (ws) => onConnection(ws, req, rt));
-});
+}
+server.on('upgrade', onUpgrade);
+httpsMgr = new HttpsManager({ app, onUpgrade });
+httpsMgr.start();
 
 function closeSockets(token) {
   if (!token) return;
@@ -373,7 +467,7 @@ function onConnection(ws, req, rt) {
 // Grava o que estiver pendente antes de encerrar.
 for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, async () => {
-    try { await pm.stopAll(); systemHist.close(); } catch {}
+    try { autoBackup.stop(); await httpsMgr.stop(); await pm.stopAll(); systemHist.close(); } catch {}
     process.exit(0);
   });
 }

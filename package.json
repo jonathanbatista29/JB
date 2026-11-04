@@ -8,11 +8,14 @@
     "dev": "node --disable-warning=ExperimentalWarning --watch server/index.js"
   },
   "license": "MIT",
-  "engines": { "node": ">=22.13" },
+  "engines": {
+    "node": ">=22.13"
+  },
   "dependencies": {
     "express": "^5.1.0",
     "modbus-serial": "^8.0.25",
     "nodes7": "^0.3.18",
+    "selfsigned": "^5.5.0",
     "st-ethernet-ip": "^2.7.5",
     "ws": "^8.18.0"
   }

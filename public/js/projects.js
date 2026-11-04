@@ -38,7 +38,9 @@ async function render() {
       eng ? h('button', { class: 'btn primary', onclick: newProject }, '+ Novo projeto') : '',
       eng ? h('button', { class: 'btn', onclick: () => pickFile(importProject) }, 'Importar projeto') : '',
       admin ? h('button', { class: 'btn', onclick: () => (location.href = 'api/backup') }, '⬇ Backup geral') : '',
-      admin ? h('button', { class: 'btn', onclick: () => pickFile(restoreAll) }, 'Restaurar backup geral') : ''),
+      admin ? h('button', { class: 'btn', onclick: () => pickFile(restoreAll) }, 'Restaurar backup geral') : '',
+      admin ? h('button', { class: 'btn', onclick: autoBackupDialog }, '⏰ Backup automático') : '',
+      admin ? h('button', { class: 'btn', onclick: httpsDialog }, '🔒 HTTPS') : ''),
     h('p', { class: 'hint', style: { margin: 0 } },
       'Cada projeto é uma IHM separada, com as próprias telas, PLCs, tags, gateway, alarmes e histórico. Todos rodam ao mesmo tempo. ',
       'Abra pelo endereço mostrado em cada cartão.'),
@@ -72,6 +74,7 @@ function card(p, eng, admin) {
     eng ? h('div', { class: 'actions' },
       h('button', { class: 'btn small', onclick: () => (location.href = `api/projects/${p.slug}/export`) }, '⬇ Backup do projeto'),
       h('button', { class: 'btn small', onclick: () => (location.href = `api/projects/${p.slug}/history-db`) }, '⬇ Histórico (.db)'),
+      h('button', { class: 'btn small', onclick: () => restoreHistory(p) }, '⬆ Restaurar histórico (.db)'),
       h('button', { class: 'btn small', onclick: () => showVersions(p) }, '🕘 Versões salvas'),
       h('button', { class: 'btn small', onclick: () => pickFile((data) => restoreInto(p, data)) }, '⬆ Restaurar backup aqui'),
       admin ? h('button', { class: 'btn small danger', onclick: () => deleteProject(p) }, 'Excluir') : '') : '');
@@ -246,6 +249,164 @@ async function restoreAll(data) {
     toast(`Restaurado. Novos: ${r.created.length}, substituídos: ${r.replaced.length}`, 'ok');
     render();
   } catch (e) { toast(e.message, 'err'); }
+}
+
+// ---------- Restaurar histórico (.db) ----------
+function restoreHistory(p) {
+  if (p.mode === 'production') return toast('Projeto em produção: volte para o modo edição antes de restaurar o histórico', 'err');
+  const input = h('input', { type: 'file', accept: '.db,application/octet-stream', style: { display: 'none' } });
+  input.addEventListener('change', async () => {
+    const f = input.files[0];
+    input.remove();
+    if (!f) return;
+    if (!(await confirmBox(`Substituir o histórico de "${p.name}" pelo arquivo "${f.name}" (${(f.size / 1048576).toFixed(1)} MB)? ` +
+      'Tendências, eventos de alarme e dados gravados passam a ser os do arquivo. O histórico atual é guardado na pasta do projeto (historico_antes_...db).'))) return;
+    toast('Enviando histórico...');
+    try {
+      const r = await fetch(`api/projects/${p.slug}/history-db`, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: f });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error);
+      toast(`Histórico restaurado. O anterior foi guardado como ${j.kept || '-'}`, 'ok');
+    } catch (e) { toast(e.message, 'err'); }
+  });
+  document.body.append(input);
+  input.click();
+}
+
+// ---------- Backup automático diário ----------
+const fmtSize = (b) => (b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+
+async function autoBackupDialog() {
+  let s;
+  try { s = await api('api/auto-backup'); } catch (e) { return toast(e.message, 'err'); }
+  const enabled = h('input', { type: 'checkbox', checked: s.enabled });
+  const time = h('input', { type: 'time', value: s.time });
+  const folder = h('input', { type: 'text', value: s.folder, placeholder: s.defaultFolder });
+  const keep = h('input', { type: 'number', min: 1, max: 365, value: s.keep });
+  const hist = h('input', { type: 'checkbox', checked: s.includeHistory });
+  const save = async () => {
+    try {
+      await api('api/auto-backup', { method: 'PUT', body: { enabled: enabled.checked, time: time.value, folder: folder.value, keep: Number(keep.value), includeHistory: hist.checked } });
+      toast('Backup automático salvo', 'ok');
+      autoBackupDialog();
+    } catch (e) { toast(e.message, 'err'); }
+  };
+  const runNow = async (btn) => {
+    btn.disabled = true; btn.textContent = 'Fazendo backup...';
+    try { const r = await api('api/auto-backup/run', { method: 'POST' }); toast(`Backup criado: ${r.name} (${fmtSize(r.size)})`, 'ok'); } catch (e) { toast(e.message, 'err'); }
+    autoBackupDialog();
+  };
+  const restore = async (b) => {
+    const choice = await new Promise((resolve) => {
+      const done = (v) => { closeModal(); resolve(v); };
+      const withHist = h('input', { type: 'checkbox', checked: b.history.length > 0, disabled: !b.history.length });
+      openModal(h('div', { style: { maxWidth: '480px' } },
+        h('h3', {}, `Restaurar ${b.name.replace('jbihm_', '').replace('_', ' ')}`),
+        h('p', { class: 'hint' }, 'Projetos que já existem podem ser substituídos ou mantidos (o backup vira uma cópia com outro endereço).'),
+        h('label', { class: 'check' }, withHist, `Restaurar também o histórico (${b.history.length ? b.history.join(', ') : 'não incluído neste backup'})`),
+        h('div', { class: 'confirm-actions', style: { flexWrap: 'wrap' } },
+          h('button', { class: 'btn', onclick: () => done(null) }, 'Cancelar'),
+          h('button', { class: 'btn', onclick: () => done({ overwrite: false, history: withHist.checked }) }, 'Manter atuais e criar cópias'),
+          h('button', { class: 'btn danger', onclick: () => done({ overwrite: true, history: withHist.checked }) }, 'Substituir existentes'))));
+    });
+    if (!choice) return autoBackupDialog();
+    try {
+      const r = await api(`api/auto-backup/${b.name}/restore`, { method: 'POST', body: choice });
+      toast(`Restaurado. Novos: ${r.created.length}, substituídos: ${r.replaced.length}${choice.history ? ', histórico: ' + (r.history.join(', ') || '-') : ''}`, 'ok');
+      render();
+    } catch (e) { toast(e.message, 'err'); }
+  };
+  const status = s.lastError
+    ? h('div', { class: 'note warn' }, `❌ Último backup falhou (${fmtDate(s.lastRun)}): ${s.lastError}`)
+    : s.lastRun ? h('div', { class: 'note' }, `✔ Último backup: ${fmtDate(s.lastRun)} — ${s.lastResult}`) : h('div', { class: 'note' }, 'Nenhum backup feito ainda.');
+  const runBtn = h('button', { class: 'btn', onclick: () => runNow(runBtn) }, '▶ Fazer backup agora');
+  openModal(h('div', { class: 'mode-dialog', style: { width: '620px' } },
+    h('h3', {}, '⏰ Backup automático diário'),
+    h('p', { class: 'hint', style: { margin: 0 } }, 'Uma vez por dia salva todos os projetos (configuração e imagens), o histórico e os usuários numa pasta. Se o computador estiver desligado no horário, o backup é feito assim que o servidor ligar.'),
+    status,
+    h('label', { class: 'check' }, enabled, 'Ligado'),
+    h('div', { class: 'prop-grid' },
+      h('label', { class: 'field' }, 'Horário', time),
+      h('label', { class: 'field' }, 'Quantidade de cópias guardadas', keep),
+      h('label', { class: 'field full' }, 'Pasta (vazio = padrão). Ex.: D:\\Backups\\IHM ou uma pasta de rede', folder),
+      h('label', { class: 'check full' }, hist, 'Incluir o histórico (.db) de cada projeto')),
+    h('div', { class: 'hint' }, `Pasta usada: ${s.folderPath}`, s.nextRun ? ` · próximo backup: ${fmtDate(s.nextRun)}` : ''),
+    h('div', { class: 'confirm-actions', style: { justifyContent: 'space-between' } }, runBtn, h('button', { class: 'btn primary', onclick: save }, 'Salvar configuração')),
+    h('h4', { style: { margin: '6px 0 0' } }, `Backups guardados (${s.backups.length})`),
+    s.backups.length
+      ? h('div', { class: 'table-wrap', style: { maxHeight: '30vh', overflow: 'auto' } }, h('table', { class: 'grid versions' },
+        h('thead', {}, h('tr', {}, ['Data', 'Tamanho', 'Histórico', ''].map((c) => h('th', {}, c)))),
+        h('tbody', {}, s.backups.map((b) => h('tr', {},
+          h('td', {}, fmtDate(b.ts)), h('td', {}, fmtSize(b.size)), h('td', {}, b.history.length ? '✔' : '—'),
+          h('td', {}, h('button', { class: 'btn small', onclick: () => restore(b) }, 'Restaurar')))))))
+      : h('p', { class: 'hint' }, 'Nenhum backup na pasta ainda.'),
+    h('div', { class: 'confirm-actions' }, h('button', { class: 'btn', onclick: closeModal }, 'Fechar'))));
+}
+
+// ---------- HTTPS ----------
+async function httpsDialog() {
+  let s;
+  try { s = await api('api/https'); } catch (e) { return toast(e.message, 'err'); }
+  const enabled = h('input', { type: 'checkbox', checked: s.enabled });
+  const port = h('input', { type: 'number', min: 1, max: 65535, value: s.port });
+  const redirect = h('input', { type: 'checkbox', checked: s.redirect });
+  const hosts = h('input', { type: 'text', placeholder: 'ex.: ihm.minhaempresa.com.br, 200.150.10.20' });
+  const c = s.cert;
+  const host = location.hostname;
+  const httpsUrl = `https://${host}:${s.port}/`;
+  const save = async () => {
+    try {
+      const r = await api('api/https', { method: 'PUT', body: { enabled: enabled.checked, port: Number(port.value), redirect: redirect.checked } });
+      toast(r.enabled ? `HTTPS ligado em https://${host}:${r.port}/` : 'HTTPS desligado', 'ok');
+      httpsDialog();
+    } catch (e) { toast(e.message, 'err'); }
+  };
+  const generate = async () => {
+    if (c && !(await confirmBox('Gerar um certificado novo? Os aparelhos que já confiaram no certificado atual vão precisar confiar de novo.'))) return httpsDialog();
+    try {
+      await api('api/https/generate', { method: 'POST', body: { hosts: hosts.value.split(',').map((x) => x.trim()).filter(Boolean) } });
+      toast('Certificado gerado', 'ok');
+    } catch (e) { toast(e.message, 'err'); }
+    httpsDialog();
+  };
+  const custom = () => {
+    const cert = h('textarea', { rows: 5, placeholder: '-----BEGIN CERTIFICATE-----' });
+    const key = h('textarea', { rows: 5, placeholder: '-----BEGIN PRIVATE KEY-----' });
+    openModal(h('div', { class: 'mode-dialog', style: { width: '560px' } },
+      h('h3', {}, 'Usar certificado próprio'),
+      h('p', { class: 'hint', style: { margin: 0 } }, 'Cole o certificado e a chave privada em formato PEM (ex.: certificado da empresa ou Let\'s Encrypt). A chave não pode ter senha.'),
+      h('label', { class: 'field' }, 'Certificado (pode incluir a cadeia)', cert),
+      h('label', { class: 'field' }, 'Chave privada', key),
+      h('div', { class: 'confirm-actions' },
+        h('button', { class: 'btn', onclick: httpsDialog }, 'Voltar'),
+        h('button', { class: 'btn primary', onclick: async () => {
+          try { await api('api/https/cert', { method: 'POST', body: { cert: cert.value, key: key.value } }); toast('Certificado instalado', 'ok'); httpsDialog(); } catch (e) { toast(e.message, 'err'); }
+        } }, 'Instalar'))));
+  };
+  openModal(h('div', { class: 'mode-dialog', style: { width: '620px' } },
+    h('h3', {}, '🔒 HTTPS (acesso seguro)'),
+    h('p', { class: 'hint', style: { margin: 0 } }, 'Criptografa a comunicação entre os navegadores e a IHM. Recomendado para acesso fora da rede local, de preferência junto com uma VPN.'),
+    s.running ? h('div', { class: 'note' }, '✔ HTTPS ativo: ', h('b', {}, httpsUrl)) : s.error ? h('div', { class: 'note warn' }, '❌ ', s.error) : h('div', { class: 'note' }, 'HTTPS desligado.'),
+    c ? h('div', { class: 'hint' },
+      h('div', {}, `Certificado: ${c.selfSigned ? 'autoassinado' : c.issuer}`),
+      h('div', {}, `Nomes: ${c.altNames}`),
+      h('div', { class: c.expired ? 'prio-alta' : '' }, `Válido até: ${new Date(c.validTo).toLocaleDateString('pt-BR')}${c.expired ? ' — VENCIDO' : ''}`),
+      h('div', { style: { wordBreak: 'break-all' } }, `Impressão digital: ${c.fingerprint}`))
+      : h('div', { class: 'note warn' }, 'Ainda não há certificado. Gere um certificado ou instale o seu.'),
+    h('div', { class: 'prop-grid' },
+      h('label', { class: 'check full' }, enabled, 'Ligar HTTPS'),
+      h('label', { class: 'field' }, 'Porta HTTPS', port),
+      h('label', { class: 'check', style: { alignSelf: 'end' } }, redirect, 'Redirecionar HTTP para HTTPS')),
+    h('div', { class: 'confirm-actions' }, h('button', { class: 'btn primary', onclick: save }, 'Salvar')),
+    h('h4', { style: { margin: '6px 0 0' } }, 'Certificado'),
+    h('label', { class: 'field' }, 'Nomes ou IPs extras (para acesso de fora: domínio ou IP público)', hosts),
+    h('div', { class: 'confirm-actions', style: { justifyContent: 'flex-start', flexWrap: 'wrap' } },
+      h('button', { class: 'btn', onclick: generate }, c ? '↻ Gerar novo certificado' : '+ Gerar certificado autoassinado'),
+      h('button', { class: 'btn', onclick: custom }, 'Usar certificado próprio'),
+      c ? h('a', { class: 'btn', href: 'api/https/cert.crt' }, '⬇ Baixar certificado (instalar nos aparelhos)') : ''),
+    h('p', { class: 'hint', style: { margin: 0 } }, 'Com certificado autoassinado o navegador mostra um aviso na primeira vez. Para tirar o aviso, instale o certificado baixado em cada aparelho como "autoridade confiável".',
+      ' Para acessar de fora, libere a porta HTTPS no roteador/firewall ou use uma VPN, e use senhas fortes.'),
+    h('div', { class: 'confirm-actions' }, h('button', { class: 'btn', onclick: closeModal }, 'Fechar'))));
 }
 
 main().catch((e) => toast('Erro ao iniciar: ' + e.message, 'err'));
