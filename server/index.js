@@ -97,6 +97,12 @@ function authRoutes(r) {
 
 // ================= Raiz: lista de projetos, backup e restauração =================
 app.get('/', (req, res) => res.sendFile(path.join(PUBLIC, 'projects.html')));
+// Manual em PDF (funciona sem internet; abre no navegador).
+app.get(['/manual', '/:slug/manual'], (req, res) => {
+  res.type('application/pdf');
+  res.setHeader('Content-Disposition', 'inline; filename="Manual_JB_IHM.pdf"');
+  res.sendFile(path.join(__dirname, '..', 'docs', 'manual', 'Manual_JB_IHM.pdf'));
+});
 app.use(express.static(PUBLIC, { index: false }));
 
 const root = express.Router();

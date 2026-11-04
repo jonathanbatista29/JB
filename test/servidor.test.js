@@ -35,6 +35,14 @@ test('Login e níveis de acesso', async () => {
   assert.match((await admin.put('/api/users/admin', { level: 1 })).body.error, /administrador ativo/);
 });
 
+test('Manual em PDF disponível na IHM', async () => {
+  const r = await new Client(srv.url).get('/manual', { raw: true });
+  assert.equal(r.status, 200);
+  assert.equal(r.headers.get('content-type'), 'application/pdf');
+  assert.equal(Buffer.from(await r.arrayBuffer()).subarray(0, 5).toString(), '%PDF-');
+  assert.equal((await new Client(srv.url).get('/estacao-1/manual', { raw: true })).status, 200);
+});
+
 test('Vários projetos: endereço próprio e dados separados', async () => {
   const r = await admin.post('/api/projects', { name: 'Estação 2', template: 'empty' });
   assert.equal(r.body.slug, 'estacao-2');
