@@ -78,12 +78,12 @@ label.field { display: flex; flex-direction: column; gap: 3px; font-size: 12px; 
 
 /* Widgets */
 .w-label { align-items: center; white-space: pre-wrap; line-height: 1.15; overflow: hidden; }
-.w-button { flex: 1; border: none; border-radius: 6px; cursor: pointer; font-weight: 700; box-shadow: inset 0 -3px 0 rgba(0,0,0,.25), 0 2px 4px rgba(0,0,0,.3); transition: filter .1s, transform .05s; padding: 2px 6px; }
+.w-button { flex: 1; white-space: pre-line; line-height: 1.15; overflow: hidden; border: none; border-radius: 6px; cursor: pointer; font-weight: 700; box-shadow: inset 0 -3px 0 rgba(0,0,0,.25), 0 2px 4px rgba(0,0,0,.3); transition: filter .1s, transform .05s; padding: 2px 6px; }
 .w-button:active, .w-button.pressed { filter: brightness(.8); transform: translateY(1px); box-shadow: inset 0 2px 4px rgba(0,0,0,.4); }
 .w-button.on { outline: 3px solid #fff8; outline-offset: -3px; }
 .w-lamp { align-items: center; gap: 10px; padding: 0 10px; background: #1b222d; border: 1px solid #333f4f; border-radius: 6px; width: 100%; }
 .w-lamp .bulb { flex-shrink: 0; border-radius: 50%; box-shadow: inset 0 -3px 6px rgba(0,0,0,.4); transition: background .15s, box-shadow .15s; }
-.w-lamp .txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.w-lamp .txt { white-space: pre-line; line-height: 1.15; overflow: hidden; }
 .w-display { width: 100%; align-items: center; justify-content: space-between; gap: 8px; padding: 0 10px; background: #0d1117; border: 1px solid #333f4f; border-radius: 4px; font-variant-numeric: tabular-nums; }
 .w-display .lbl { color: var(--muted); white-space: nowrap; }
 .w-display .val { font-weight: 700; color: #7CFC9A; white-space: nowrap; margin-left: auto; }
@@ -232,3 +232,8 @@ input[type=datetime-local] { background: var(--bg); border: 1px solid var(--line
 .pal-nav small { display: block; color: var(--muted); font-size: 11px; }
 .pal-item.new { border: 1px dashed var(--accent); background: transparent; }
 .lib-note { background: #1d2a3a; border-left: 3px solid #2d6cdf; padding: 6px 8px; border-radius: 4px; font-size: 12px; color: #b9c8da; }
+
+/* Edição de texto direto na tela (editor) */
+.inline-edit { position: absolute; z-index: 10000; user-select: text; padding: 4px 6px; margin: 0; resize: none; line-height: 1.15; font-weight: 700;
+  background: #0d1117f0; color: #fff; border: 2px solid var(--accent) !important; border-radius: 6px; box-shadow: 0 6px 20px rgba(0,0,0,.5); }
+.inline-hint { position: absolute; z-index: 10000; font-size: 11px; color: #fff; background: #000c; padding: 2px 6px; border-radius: 4px; white-space: nowrap; pointer-events: none; }

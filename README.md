@@ -7,6 +7,8 @@ em PC, tablet ou celular.
 ## Funcionalidades
 
 - **Editor de telas** (arrastar e soltar): mover, redimensionar, grade, zoom, copiar/colar, desfazer, várias telas.
+  Duplo clique num botão, texto ou sinaleiro edita o texto direto na tela (Enter confirma, Shift+Enter nova linha,
+  Esc cancela). Textos de botões podem ter várias linhas.
 - **Objetos de tela**: texto, painel, botão (pulso, liga/desliga, set, reset, valor fixo, navegação), chave,
   entrada numérica com teclado na tela, controle deslizante, sinaleiro, valor numérico com limites,
   texto por estado, barra gráfica, tanque, manômetro (gauge), motor/bomba/válvula/ventilador, gráfico de tendência.

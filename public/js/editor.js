@@ -86,6 +86,7 @@ function renderCanvas() {
   screenEl = h('div', { class: 'screen' + (grid ? ' grid' : ''), style: { width: s.width + 'px', height: s.height + 'px', background: s.bg } });
   for (const w of s.widgets) screenEl.append(makeBox(w));
   screenEl.addEventListener('pointerdown', onPointerDown);
+  screenEl.addEventListener('dblclick', (e) => { const box = e.target.closest('.wgt'); if (box) startInlineEdit(box.dataset.id); });
   const holder = h('div', { style: { position: 'relative' } }, screenEl);
   stage.replaceChildren(holder);
   applyZoom();
@@ -350,6 +351,58 @@ function inputFor(def, obj, onChange, before = () => {}) {
   }
 }
 
+// ---------- Edição de texto direto na tela ----------
+// Objetos com texto editável e onde o texto fica guardado.
+const TEXT_TYPES = { label: 'left', button: 'center', lamp: 'left', navbtn: 'center' };
+function textTarget(w) {
+  if (!(w.type in TEXT_TYPES)) return null;
+  if (w.type === 'navbtn') { const b = navButton(w.props.ref); return b ? { obj: b, shared: true } : null; }
+  return { obj: w.props, shared: false };
+}
+
+let inlineEditor = null;
+function startInlineEdit(id) {
+  const w = scr().widgets.find((x) => x.id === id);
+  const t = w && textTarget(w);
+  if (!t) return toast('Este objeto não tem texto para editar');
+  closeInlineEdit(true);
+  select(id);
+  const align = w.type === 'label' ? w.props.align || 'left' : TEXT_TYPES[w.type];
+  const ta = h('textarea', { class: 'inline-edit', spellcheck: 'false', style: {
+    left: w.x + 'px', top: w.y + 'px', width: Math.max(w.w, 80) + 'px', height: Math.max(w.h, 36) + 'px',
+    fontSize: (Number(t.obj.fontSize) || 16) + 'px', textAlign: align,
+  } }, t.obj.text ?? '');
+  const hint = h('div', { class: 'inline-hint', style: { left: w.x + 'px', top: w.y + Math.max(w.h, 36) + 4 + 'px' } },
+    'Enter confirma · Shift+Enter nova linha · Esc cancela');
+  const done = (save) => {
+    if (inlineEditor !== editor) return;
+    inlineEditor = null;
+    ta.remove(); hint.remove();
+    if (!save || ta.value === (t.obj.text ?? '')) return;
+    if (!t.shared) pushUndo();
+    t.obj.text = ta.value;
+    markDirty();
+    if (t.shared) { renderCanvas(); renderNavPalette(); } else refreshBox(w);
+    renderProps();
+  };
+  const editor = { done };
+  inlineEditor = editor;
+  ta.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); done(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); done(false); }
+  });
+  ta.addEventListener('blur', () => done(true));
+  ta.addEventListener('pointerdown', (e) => e.stopPropagation());
+  screenEl.append(ta, hint);
+  ta.focus();
+  ta.select();
+}
+
+function closeInlineEdit(save) {
+  inlineEditor?.done(save);
+}
+
 // ---------- Botões de tela (biblioteca) ----------
 const lib = () => (state.project.navButtons ||= []);
 const screenName = (id) => state.project.screens.find((s) => s.id === id)?.name;
@@ -408,6 +461,7 @@ function renderNavButtonProps(w) {
     type: 'number', value: w[key], onchange: (e) => { pushUndo(); w[key] = Math.max(key === 'w' || key === 'h' ? 10 : 0, Number(e.target.value) || 0); markDirty(); refreshBox(w); },
   }));
   const actions = h('div', { class: 'prop-actions' },
+    b ? h('button', { class: 'btn small primary', onclick: () => startInlineEdit(w.id) }, '✎ Editar texto na tela') : '',
     h('button', { class: 'btn small', onclick: () => duplicate() }, 'Duplicar'),
     h('button', { class: 'btn small', onclick: () => reorder(true) }, 'Trazer p/ frente'),
     h('button', { class: 'btn small', onclick: () => reorder(false) }, 'Enviar p/ trás'),
@@ -434,7 +488,7 @@ function renderNavButtonProps(w) {
     h('div', { class: 'lib-note' }, `Usado ${uses} vez(es) no projeto. Mudanças aqui valem para todas as cópias.`),
     h('div', { class: 'prop-grid', style: { marginTop: '8px' } },
       field('Nome (na paleta)', h('input', { type: 'text', value: b.name, onchange: libChange('name') }), true),
-      field('Texto do botão', h('input', { type: 'text', value: b.text, onchange: libChange('text') }), true),
+      field('Texto do botão (Enter = nova linha)', h('textarea', { rows: 2, onchange: libChange('text') }, b.text ?? ''), true),
       field('Abre a tela', h('select', { onchange: libChange('screen') },
         h('option', { value: '' }, '— escolha —'),
         state.project.screens.map((x) => h('option', { value: x.id, selected: x.id === b.screen }, `${x.number ?? '?'} · ${x.name}`))), true),
@@ -480,6 +534,7 @@ function renderProps() {
           ? h('label', { class: 'check' + (pd.full ? ' full' : '') }, inputFor(pd, w.props, onChange, pushUndo), pd.label)
           : field(pd.label, inputFor(pd, w.props, onChange, pushUndo), pd.full || pd.kind === 'textarea'))),
     h('div', { class: 'prop-actions' },
+      textTarget(w) ? h('button', { class: 'btn small primary', onclick: () => startInlineEdit(w.id) }, '✎ Editar texto na tela') : '',
       h('button', { class: 'btn small', onclick: () => duplicate() }, 'Duplicar'),
       h('button', { class: 'btn small', onclick: () => reorder(true) }, 'Trazer p/ frente'),
       h('button', { class: 'btn small', onclick: () => reorder(false) }, 'Enviar p/ trás'),

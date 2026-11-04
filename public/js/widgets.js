@@ -31,7 +31,7 @@ function allowed(w) {
 
 const P = {
   tag: { key: 'tag', label: 'Tag', kind: 'tag', full: true },
-  text: { key: 'text', label: 'Texto', kind: 'text', full: true },
+  text: { key: 'text', label: 'Texto (Enter = nova linha)', kind: 'textarea', full: true },
   fontSize: { key: 'fontSize', label: 'Fonte (px)', kind: 'number' },
   color: { key: 'color', label: 'Cor do texto', kind: 'color' },
   bg: { key: 'bg', label: 'Cor de fundo', kind: 'color' },
@@ -70,7 +70,7 @@ export const WIDGETS = {
   label: {
     name: 'Texto', icon: 'T', size: [200, 40], group: 'Básico',
     defaults: { text: 'Texto', fontSize: 18, color: '#ffffff', bg: 'transparent', bold: false, align: 'left' },
-    props: [{ ...P.text, kind: 'textarea' }, P.fontSize, P.color, P.bg,
+    props: [P.text, P.fontSize, P.color, P.bg,
       { key: 'align', label: 'Alinhamento', kind: 'select', options: [['left', 'Esquerda'], ['center', 'Centro'], ['right', 'Direita']] },
       { key: 'bold', label: 'Negrito', kind: 'bool' }],
     render(w) {
