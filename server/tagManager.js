@@ -42,6 +42,16 @@ class TagManager extends EventEmitter {
       this.conns.set(cfg.id, st);
       this.poll(st);
     }
+    // Tags sem conexão ativa (desativada, com erro ou inexistente) não podem ficar com o
+    // último valor como "bom": a tela e o histórico gravariam um valor congelado.
+    const changed = {};
+    for (const tag of project.tags) {
+      const prev = this.values[tag.name];
+      if (!this.conns.has(tag.connection) && (!prev || prev.q !== 'bad')) {
+        changed[tag.name] = this.values[tag.name] = { v: prev ? prev.v : null, q: 'bad', ts: Date.now() };
+      }
+    }
+    this.publish(changed);
     this.emit('alarms');
   }
 
