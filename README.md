@@ -66,6 +66,19 @@ No primeiro uso entre com **usuário `admin` e senha `admin`**. O sistema obriga
 - Esqueceu a senha do admin? Pare o servidor e apague `data/users.json`: o usuário `admin`/`admin` é recriado
   (os outros usuários serão perdidos).
 
+## Troca de tela
+
+Uma tela pode ser aberta de três jeitos:
+
+1. **Botão**: ação "Ir para outra tela" ou "Voltar à tela anterior".
+2. **Bit do PLC (BOOL)**: no Editor, sem nenhum objeto selecionado, escolha em "Abrir quando este BOOL ligar".
+   A tela abre quando o bit liga. Marque "Desligar o bit depois de abrir" para a IHM zerar o bit sozinha.
+3. **Número pelo PLC (INT/DINT)**: cada tela tem um "Número da tela". Escolha o "Tag com o nº da tela a abrir":
+   quando o PLC escreve 2, todos os painéis abrem a tela nº 2. Opções: zerar o tag depois de trocar e
+   escrever o número da tela aberta em outro tag ("tela atual"), para o PLC saber onde o operador está.
+
+O projeto de demonstração já vem configurado com os tags `Tela_Solicitada`, `Tela_Atual` e `Abrir_Tendencias`.
+
 ## Histórico
 
 O histórico fica no arquivo `data/historico.db` (SQLite), que pode ser aberto com qualquer ferramenta SQLite
@@ -101,6 +114,7 @@ server/            servidor Node.js
   index.js         HTTP + WebSocket
   auth.js          usuários, sessões e registro de ações
   historian.js     histórico em banco SQLite
+  navigator.js     troca de tela pelo PLC
   tagManager.js    leitura cíclica, escrita e alarmes
   drivers/         simulator, modbus (TCP/RTU), s7, logix (CompactLogix)
   models.js        modelos de PLC pré-configurados

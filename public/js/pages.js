@@ -58,6 +58,9 @@ export function renderTags() {
       if (pr.tags) pr.tags = pr.tags.split(',').map((t) => (t.trim() === oldName ? newName : t.trim())).join(', ');
     }
     for (const a of p.alarms) if (a.tag === oldName) a.tag = newName;
+    for (const s of p.screens) if (s.openTag === oldName) s.openTag = newName;
+    const nav = p.navigation || {};
+    for (const k of ['requestTag', 'currentTag']) if (nav[k] === oldName) nav[k] = newName;
   }
 
   function row(t) {

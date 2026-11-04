@@ -268,8 +268,16 @@ function onKey(e) {
 }
 
 // ---------- Telas ----------
+// Próximo número de tela livre.
+function nextNumber() {
+  const used = new Set(state.project.screens.map((s) => Number(s.number)));
+  let n = 1;
+  while (used.has(n)) n++;
+  return n;
+}
+
 function addScreen() {
-  const s = { id: uid('tela'), name: `Tela ${state.project.screens.length + 1}`, width: scr()?.width || 1024, height: scr()?.height || 600, bg: '#1e2530', widgets: [] };
+  const s = { id: uid('tela'), number: nextNumber(), name: `Tela ${state.project.screens.length + 1}`, width: scr()?.width || 1024, height: scr()?.height || 600, bg: '#1e2530', widgets: [] };
   state.project.screens.push(s);
   screenId = s.id;
   selId = null;
@@ -280,6 +288,8 @@ function addScreen() {
 function dupScreen() {
   const s = structuredClone(scr());
   s.id = uid('tela');
+  s.number = nextNumber();
+  s.openTag = '';
   s.name += ' (cópia)';
   for (const w of s.widgets) w.id = uid('w');
   state.project.screens.push(s);
@@ -327,7 +337,7 @@ function inputFor(def, obj, onChange, before = () => {}) {
     }
     case 'screen': return h('select', { onchange: (e) => set(e.target.value) },
       h('option', { value: '' }, '— escolha —'),
-      state.project.screens.map((s) => h('option', { value: s.id, selected: s.id === v }, s.name)));
+      state.project.screens.map((s) => h('option', { value: s.id, selected: s.id === v }, `${s.number ?? '?'} · ${s.name}`)));
     default: return h('input', { type: 'text', value: v ?? '', onchange: (e) => set(e.target.value) });
   }
 }
@@ -362,6 +372,49 @@ function renderProps() {
       h('button', { class: 'btn small danger', onclick: deleteSel }, 'Excluir')));
 }
 
+const INT_TYPES = ['int16', 'uint16', 'int32', 'uint32'];
+
+// Seleção de tag filtrada por tipo.
+function tagSelect(value, types, onchange) {
+  const tags = state.project.tags.filter((t) => types.includes(t.type));
+  const sel = h('select', { onchange: (e) => onchange(e.target.value) },
+    h('option', { value: '' }, '— nenhum —'),
+    tags.map((t) => h('option', { value: t.name, selected: t.name === value }, `${t.name} (${t.type.toUpperCase()})`)));
+  if (value && !tags.some((t) => t.name === value)) sel.append(h('option', { value, selected: true }, `${value} (tipo inválido ou não existe!)`));
+  return sel;
+}
+
+// Campos de troca de tela pelo PLC: por número (projeto) e por bit (esta tela).
+function navProps(s) {
+  const nav = (state.project.navigation ||= { requestTag: '', resetRequest: false, currentTag: '' });
+  const dirty = () => { markDirty(); renderProps(); };
+  const numIn = h('input', { type: 'number', min: 1, value: s.number ?? '', onchange: (e) => {
+    const n = Math.floor(Number(e.target.value));
+    if (!(n >= 1)) { toast('Número inválido', 'err'); e.target.value = s.number ?? ''; return; }
+    const other = state.project.screens.find((x) => x !== s && Number(x.number) === n);
+    if (other) { toast(`O número ${n} já é da tela "${other.name}"`, 'err'); e.target.value = s.number ?? ''; return; }
+    s.number = n;
+    dirty();
+  } });
+  return [
+    h('h4', {}, 'Chamada da tela pelo PLC'),
+    h('div', { class: 'prop-grid' },
+      field('Número da tela', numIn),
+      h('div', { class: 'hint', style: { alignSelf: 'end' } }, 'Usado pela chamada por INT/DINT.'),
+      field('Abrir quando este BOOL ligar', tagSelect(s.openTag, ['bool'], (v) => { s.openTag = v; dirty(); }), true),
+      h('label', { class: 'check full' }, h('input', { type: 'checkbox', checked: Boolean(s.resetOpenTag), disabled: !s.openTag,
+        onchange: (e) => { s.resetOpenTag = e.target.checked; markDirty(); } }), 'Desligar o bit depois de abrir a tela')),
+    h('h4', {}, 'Chamada por número (todas as telas)'),
+    h('div', { class: 'prop-grid' },
+      field('Tag com o nº da tela a abrir (INT/DINT)', tagSelect(nav.requestTag, INT_TYPES, (v) => { nav.requestTag = v; dirty(); }), true),
+      h('label', { class: 'check full' }, h('input', { type: 'checkbox', checked: Boolean(nav.resetRequest), disabled: !nav.requestTag,
+        onchange: (e) => { nav.resetRequest = e.target.checked; markDirty(); } }), 'Zerar o tag depois de trocar de tela'),
+      field('Tag que recebe o nº da tela atual (INT/DINT)', tagSelect(nav.currentTag, INT_TYPES, (v) => { nav.currentTag = v; dirty(); }), true)),
+    h('p', { class: 'hint' }, 'Ex.: o PLC escreve 2 no tag de número e todos os painéis abrem a tela nº 2. ' +
+      'Botões também podem abrir telas (ação "Ir para outra tela" ou "Voltar à tela anterior").'),
+  ];
+}
+
 function renderScreenProps() {
   const s = scr();
   const change = (key, conv = (x) => x) => (e) => {
@@ -377,6 +430,7 @@ function renderScreenProps() {
       field('Altura (px)', h('input', { type: 'number', value: s.height, onchange: change('height', (v) => Math.max(150, Number(v) || 600)) })),
       field('Cor de fundo', h('input', { type: 'color', value: /^#[0-9a-f]{6}$/i.test(s.bg) ? s.bg : '#1e2530', onchange: change('bg') }), true),
       h('label', { class: 'check full' }, h('input', { type: 'checkbox', checked: s.showInNav !== false, onchange: change('showInNav') }), 'Mostrar no menu de telas')),
+    ...navProps(s),
     h('h4', {}, 'Como usar'),
     h('p', { class: 'hint' }, '1. Cadastre o PLC na aba "PLCs".'),
     h('p', { class: 'hint' }, '2. Crie os tags (variáveis) na aba "Tags".'),

@@ -18,7 +18,7 @@ const boolFor = (tag, on) => (findTag(tag)?.type === 'bool' ? on : on ? 1 : 0);
 // Nível mínimo para usar um objeto de comando. "Padrão": operador para comandos, todos para navegar.
 function minLevel(w) {
   const own = Number(w.props.level) || 0;
-  if (w.type === 'button' && w.props.action === 'navigate') return own;
+  if (w.type === 'button' && (w.props.action === 'navigate' || w.props.action === 'back')) return own;
   return Math.max(LV.OPERATOR, own, w.props.tag ? tagWriteLevel(w.props.tag) : LV.OPERATOR);
 }
 function allowed(w) {
@@ -73,7 +73,7 @@ export const WIDGETS = {
     props: [P.text,
       { key: 'action', label: 'Ação', kind: 'select', full: true, options: [
         ['momentary', 'Pulso (liga enquanto pressionado)'], ['toggle', 'Alternar (liga/desliga)'], ['set', 'Ligar (set)'], ['reset', 'Desligar (reset)'],
-        ['value', 'Escrever valor fixo'], ['navigate', 'Ir para outra tela']] },
+        ['value', 'Escrever valor fixo'], ['navigate', 'Ir para outra tela'], ['back', 'Voltar à tela anterior']] },
       P.tag, { key: 'value', label: 'Valor a escrever', kind: 'number', showIf: (p) => p.action === 'value' },
       { key: 'screen', label: 'Tela de destino', kind: 'screen', full: true, showIf: (p) => p.action === 'navigate' },
       P.bg, P.color, P.fontSize, { key: 'confirm', label: 'Pedir confirmação', kind: 'bool' }, P.level],
@@ -97,6 +97,7 @@ export const WIDGETS = {
         el.addEventListener('click', async () => {
           if (!allowed(w)) return;
           if (p.action === 'navigate') return rt.navigate(p.screen);
+          if (p.action === 'back') return rt.back();
           if (!(await ask())) return;
           const v = p.action === 'toggle' ? boolFor(p.tag, !isOn(tagValue(p.tag)))
             : p.action === 'set' ? boolFor(p.tag, true)

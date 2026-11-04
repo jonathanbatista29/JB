@@ -1,9 +1,11 @@
 // Modo operação: a tela que o operador usa no dia a dia.
-import { state, on, h, ackAlarm } from './state.js';
+import { state, on, h, ackAlarm, reportScreen, toast } from './state.js';
 import { renderWidget } from './widgets.js';
 
 let root, stage, nav, alarmBar, screenEl, clock;
 let current = null;
+const backStack = []; // telas anteriores, para o botão "Voltar"
+const MAX_BACK = 20;
 let boxes = [];
 
 export function initRuntime(el) {
@@ -22,11 +24,34 @@ export function initRuntime(el) {
     for (const b of boxes) b._update();
   });
   on('alarms', renderAlarmBar);
+  // Troca de tela pedida pelo PLC
+  on('plcNavigate', ({ screen }) => {
+    const scr = state.project?.screens.find((s) => s.id === screen);
+    if (!scr || screen === current) return;
+    navigate(screen);
+    if (!root.classList.contains('active')) toast(`PLC abriu a tela "${scr.name}" (veja em Operação)`);
+  });
+  // Ao reconectar, informa de novo a tela atual
+  on('status', () => { if (state.wsOnline && current && root.classList.contains('active')) reportScreen(current); });
   new ResizeObserver(fit).observe(stage);
 }
 
 export function refreshRuntime() {
   show(current);
+}
+
+// Navega guardando a tela anterior (para "Voltar").
+export function navigate(id) {
+  if (current && id !== current) {
+    backStack.push(current);
+    if (backStack.length > MAX_BACK) backStack.shift();
+  }
+  show(id);
+}
+
+export function back() {
+  const id = backStack.pop();
+  if (id) show(id);
 }
 
 export function show(id) {
@@ -39,16 +64,17 @@ export function show(id) {
 
   nav.replaceChildren(
     ...screens.filter((s) => s.showInNav !== false).map((s) =>
-      h('button', { class: s.id === scr.id ? 'active' : '', onclick: () => show(s.id) }, s.name)),
+      h('button', { class: s.id === scr.id ? 'active' : '', onclick: () => navigate(s.id) }, s.name)),
     clock);
 
   for (const b of boxes) b._destroy();
   screenEl = h('div', { class: 'screen', style: { width: scr.width + 'px', height: scr.height + 'px', background: scr.bg } });
-  const rt = { runtime: true, navigate: (sid) => show(sid) };
+  const rt = { runtime: true, navigate: (sid) => navigate(sid), back };
   boxes = scr.widgets.map((w) => renderWidget(w, rt));
   screenEl.append(...boxes);
   stage.replaceChildren(screenEl);
   fit();
+  if (root.classList.contains('active')) reportScreen(scr.id);
 }
 
 // Escala a tela para caber no espaço disponível (tablet, monitor, celular).

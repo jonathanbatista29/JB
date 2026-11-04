@@ -8,6 +8,7 @@ const models = require('./models');
 const auth = require('./auth');
 const { TagManager } = require('./tagManager');
 const { Historian } = require('./historian');
+const { Navigator } = require('./navigator');
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -27,6 +28,9 @@ let project = storage.load();
 hist.configure(project);
 tm.history = hist.alarms({ limit: 200 }); // histórico de alarmes sobrevive ao reinício
 tm.on('values', (v) => hist.onValues(v));
+const nav = new Navigator(tm);
+nav.configure(project);
+tm.on('values', (v) => nav.onValues(v));
 tm.on('alarmEvent', (e) => hist.addAlarm(e));
 tm.load(project);
 
@@ -77,6 +81,7 @@ app.get('/api/project', need(LV.VIEW), (req, res) => res.json(project));
 app.put('/api/project', need(LV.ENG), wrap(async (req) => {
   project = storage.save(req.body);
   hist.configure(project);
+  nav.configure(project);
   await tm.load(project);
   auth.log(req.who, 'Salvou o projeto', `${project.screens.length} tela(s), ${project.tags.length} tag(s)`);
 }));
@@ -164,6 +169,8 @@ function refreshSockets() {
 tm.on('values', (values) => broadcast({ type: 'values', values }));
 tm.on('status', (status) => broadcast({ type: 'status', status }));
 tm.on('alarms', () => broadcast({ type: 'alarms', ...tm.alarmState() }));
+nav.on('navigate', (e) => broadcast({ type: 'navigate', ...e }));
+nav.on('warning', (msg) => console.warn('Troca de tela:', msg));
 
 wss.on('connection', (ws, req) => {
   const sess = auth.sessionFrom(req);
@@ -187,6 +194,8 @@ wss.on('connection', (ws, req) => {
       } catch (e) {
         ws.send(JSON.stringify({ type: 'writeResult', id: msg.id, ok: false, error: e.message }));
       }
+    } else if (msg.type === 'screen') {
+      nav.reportScreen(String(msg.screen || ''));
     } else if (msg.type === 'ack') {
       if (ws.level < LV.OPERATOR) return;
       tm.ack(msg.id, ws.who);

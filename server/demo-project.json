@@ -93,6 +93,30 @@
       "type": "int16",
       "access": "RW",
       "description": "0=Manual 1=Automático 2=Manutenção"
+    },
+    {
+      "name": "Tela_Solicitada",
+      "connection": "sim1",
+      "address": "tela_req",
+      "type": "int16",
+      "access": "RW",
+      "description": "PLC escreve o nº da tela a abrir"
+    },
+    {
+      "name": "Tela_Atual",
+      "connection": "sim1",
+      "address": "tela_atual",
+      "type": "int16",
+      "access": "RW",
+      "description": "IHM escreve o nº da tela aberta"
+    },
+    {
+      "name": "Abrir_Tendencias",
+      "connection": "sim1",
+      "address": "abrir_tend",
+      "type": "bool",
+      "access": "RW",
+      "description": "Liga para abrir a tela Tendências"
     }
   ],
   "alarms": [
@@ -558,7 +582,8 @@
             "offColor": "#3b4554"
           }
         }
-      ]
+      ],
+      "number": 1
     },
     {
       "id": "tela2",
@@ -619,8 +644,7 @@
           "h": 55,
           "props": {
             "text": "◀ VOLTAR",
-            "action": "navigate",
-            "screen": "tela1",
+            "action": "back",
             "bg": "#2d6cdf",
             "color": "#ffffff",
             "fontSize": 18
@@ -656,11 +680,19 @@
             "hi": 90
           }
         }
-      ]
+      ],
+      "number": 2,
+      "openTag": "Abrir_Tendencias",
+      "resetOpenTag": true
     }
   ],
   "historian": {
     "retentionDays": 90,
     "heartbeatSec": 60
+  },
+  "navigation": {
+    "requestTag": "Tela_Solicitada",
+    "resetRequest": true,
+    "currentTag": "Tela_Atual"
   }
 }

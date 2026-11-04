@@ -16,6 +16,18 @@ function normalize(p) {
   };
   if (!out.screens.length) out.screens.push({ id: 'tela1', name: 'Principal', width: 1024, height: 600, bg: '#1e2530', widgets: [] });
   for (const s of out.screens) if (!Array.isArray(s.widgets)) s.widgets = [];
+  // Cada tela tem um número único (usado na troca de tela pelo PLC).
+  const used = new Set();
+  for (const s of out.screens) {
+    const n = Math.floor(Number(s.number));
+    if (s.number === '' || s.number == null || !Number.isFinite(n) || n < 1) delete s.number;
+    else if (used.has(n)) throw new Error(`Número de tela repetido: ${n} ("${s.name}")`);
+    else { s.number = n; used.add(n); }
+  }
+  let next = 1;
+  for (const s of out.screens) if (s.number == null) { while (used.has(next)) next++; s.number = next; used.add(next); }
+  const nav = out.navigation && typeof out.navigation === 'object' ? out.navigation : {};
+  out.navigation = { requestTag: String(nav.requestTag || ''), resetRequest: Boolean(nav.resetRequest), currentTag: String(nav.currentTag || '') };
   const names = new Set();
   for (const t of out.tags) {
     if (!t.name || names.has(t.name)) throw new Error(`Nome de tag vazio ou repetido: "${t.name || ''}"`);

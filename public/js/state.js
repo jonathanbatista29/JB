@@ -124,6 +124,9 @@ export function connectWs() {
         state.alarms = { active: msg.active, history: msg.history };
         emit('alarms', state.alarms);
         break;
+      case 'navigate':
+        emit('plcNavigate', msg);
+        break;
       case 'writeResult': {
         const p = pending.get(msg.id);
         if (p) { pending.delete(msg.id); msg.ok ? p.resolve() : p.reject(new Error(msg.error)); }
@@ -153,6 +156,11 @@ export function writeTag(tag, value) {
     pending.set(id, { resolve, reject });
     setTimeout(() => { if (pending.delete(id)) reject(new Error('Tempo esgotado na escrita')); }, 5000);
   }).catch((e) => { if (e.message !== 'sem permissão') toast(`Escrita em ${tag}: ${e.message}`, 'err'); throw e; });
+}
+
+// Informa ao servidor a tela que está sendo mostrada (para o tag de "tela atual" do PLC).
+export function reportScreen(screen) {
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'screen', screen }));
 }
 
 export function ackAlarm(id) {
