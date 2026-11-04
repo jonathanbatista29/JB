@@ -1,5 +1,7 @@
 # JB IHM — IHM / SCADA Web
 
+📖 **[Manual passo a passo com imagens](docs/manual/MANUAL.md)** · [versão em PDF para imprimir](docs/manual/Manual_JB_IHM.pdf) · dentro da IHM: menu ⋮ → 📖 Manual (ou `http://IP:3000/manual`)
+
 Software de IHM (Interface Homem-Máquina) que roda no navegador. Permite **criar telas** arrastando
 botões, sinaleiros, displays, gráficos etc., **conectar com PLCs** e usar tudo em **modo operador**
 em PC, tablet ou celular.

@@ -12,7 +12,7 @@ const { DatabaseSync } = require('node:sqlite');
 // com as próprias conexões, histórico, alarmes e gateway. Endereço na web: http://IP:porta/<endereço>/
 const PROJECTS_DIR = path.join(storage.DATA_DIR, 'projects');
 const TRASH_DIR = path.join(storage.DATA_DIR, 'lixeira');
-const RESERVED = new Set(['api', 'ws', 'css', 'js', 'docs', 'favicon.ico', 'index.html', 'projects.html']);
+const RESERVED = new Set(['api', 'ws', 'css', 'js', 'docs', 'manual', 'favicon.ico', 'index.html', 'projects.html']);
 
 // "Estação 1" -> "estacao-1"
 function slugify(name) {
