@@ -26,6 +26,16 @@ function normalize(p) {
   }
   let next = 1;
   for (const s of out.screens) if (s.number == null) { while (used.has(next)) next++; s.number = next; used.add(next); }
+  // Biblioteca de botões de tela: número sequencial único.
+  if (!Array.isArray(out.navButtons)) out.navButtons = [];
+  const usedB = new Set();
+  out.navButtons = out.navButtons.filter((b) => b && b.id);
+  for (const b of out.navButtons) {
+    const n = Math.floor(Number(b.number));
+    if (n >= 1 && !usedB.has(n)) { b.number = n; usedB.add(n); } else delete b.number;
+  }
+  let nb = 1;
+  for (const b of out.navButtons) if (b.number == null) { while (usedB.has(nb)) nb++; b.number = nb; usedB.add(nb); }
   const nav = out.navigation && typeof out.navigation === 'object' ? out.navigation : {};
   out.navigation = { requestTag: String(nav.requestTag || ''), resetRequest: Boolean(nav.resetRequest), currentTag: String(nav.currentTag || '') };
   const names = new Set();

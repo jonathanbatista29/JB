@@ -1,7 +1,7 @@
 // Biblioteca de objetos de tela (widgets).
 // Cada widget define: nome, ícone, tamanho padrão, propriedades editáveis e render().
 // render(w, rt) devolve o elemento; el._update() é chamado quando os valores mudam.
-import { h, api, tagValue, tagQuality, findTag, writeTag, keypad, confirmBox, can, emit, tagWriteLevel, LV, LEVEL_NAMES } from './state.js';
+import { state, h, api, toast, tagValue, tagQuality, findTag, writeTag, keypad, confirmBox, can, emit, tagWriteLevel, LV, LEVEL_NAMES } from './state.js';
 
 const num = (v, d = 0) => (Number.isFinite(Number(v)) && v !== '' && v != null ? Number(v) : d);
 const fmt = (v, dec) => {
@@ -17,6 +17,7 @@ const boolFor = (tag, on) => (findTag(tag)?.type === 'bool' ? on : on ? 1 : 0);
 
 // Nível mínimo para usar um objeto de comando. "Padrão": operador para comandos, todos para navegar.
 function minLevel(w) {
+  if (w.type === 'navbtn') return Number(navButton(w.props.ref)?.level) || 0;
   const own = Number(w.props.level) || 0;
   if (w.type === 'button' && (w.props.action === 'navigate' || w.props.action === 'back')) return own;
   return Math.max(LV.OPERATOR, own, w.props.tag ? tagWriteLevel(w.props.tag) : LV.OPERATOR);
@@ -43,7 +44,29 @@ const P = {
     options: [['', 'Padrão'], ['1', 'Operador'], ['2', 'Manutenção'], ['3', 'Engenharia'], ['4', 'Administrador']] },
 };
 
+// Biblioteca de botões de tela do projeto (cada um chama uma tela e pode ser usado em várias telas).
+export const navButton = (id) => (state.project?.navButtons || []).find((b) => b.id === id);
+export const NAVBTN_DEFAULTS = { text: 'TELA', screen: '', bg: '#2d6cdf', color: '#ffffff', fontSize: 16, level: '' };
+
 export const WIDGETS = {
+  navbtn: {
+    name: 'Botão de tela', icon: '⇨', size: [160, 50], group: 'Botões de tela', hidden: true,
+    defaults: { ref: '' }, props: [], command: true,
+    render(w, rt) {
+      const b = navButton(w.props.ref);
+      const p = { ...NAVBTN_DEFAULTS, ...(b || {}) };
+      const el = h('button', { class: 'w-button w-navbtn', style: { background: p.bg, color: p.color, fontSize: p.fontSize + 'px' } },
+        b ? p.text : '(botão excluído)');
+      el._update = () => el.classList.toggle('current', Boolean(b?.screen) && b.screen === rt.current);
+      if (rt.runtime) el.addEventListener('click', () => {
+        if (!b?.screen) return toast('Este botão ainda não tem tela de destino', 'err');
+        if (!allowed(w)) return;
+        rt.navigate(b.screen);
+      });
+      return el;
+    },
+  },
+
   label: {
     name: 'Texto', icon: 'T', size: [200, 40], group: 'Básico',
     defaults: { text: 'Texto', fontSize: 18, color: '#ffffff', bg: 'transparent', bold: false, align: 'left' },

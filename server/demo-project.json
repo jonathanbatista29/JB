@@ -520,18 +520,13 @@
         },
         {
           "id": "w50",
-          "type": "button",
+          "type": "navbtn",
           "x": 690,
           "y": 400,
           "w": 314,
           "h": 55,
           "props": {
-            "text": "TENDÊNCIAS ▶",
-            "action": "navigate",
-            "screen": "tela2",
-            "bg": "#2d6cdf",
-            "color": "#ffffff",
-            "fontSize": 18
+            "ref": "nb2"
           }
         },
         {
@@ -679,6 +674,17 @@
             "unit": "%",
             "hi": 90
           }
+        },
+        {
+          "id": "t7",
+          "type": "navbtn",
+          "x": 784,
+          "y": 520,
+          "w": 220,
+          "h": 55,
+          "props": {
+            "ref": "nb1"
+          }
         }
       ],
       "number": 2,
@@ -694,5 +700,29 @@
     "requestTag": "Tela_Solicitada",
     "resetRequest": true,
     "currentTag": "Tela_Atual"
-  }
+  },
+  "navButtons": [
+    {
+      "id": "nb1",
+      "number": 1,
+      "name": "Principal",
+      "text": "PRINCIPAL",
+      "screen": "tela1",
+      "bg": "#2d6cdf",
+      "color": "#ffffff",
+      "fontSize": 18,
+      "level": ""
+    },
+    {
+      "id": "nb2",
+      "number": 2,
+      "name": "Tendências",
+      "text": "TENDÊNCIAS ▶",
+      "screen": "tela2",
+      "bg": "#2d6cdf",
+      "color": "#ffffff",
+      "fontSize": 18,
+      "level": ""
+    }
+  ]
 }

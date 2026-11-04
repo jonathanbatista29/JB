@@ -188,7 +188,7 @@ export function h(tag, attrs = {}, ...children) {
     else if (k === 'checked') el.checked = v;
     else el.setAttribute(k, v === true ? '' : v);
   }
-  for (const c of children.flat()) if (c != null && c !== false) el.append(c instanceof Node ? c : String(c));
+  for (const c of children.flat(Infinity)) if (c != null && c !== false) el.append(c instanceof Node ? c : String(c));
   return el;
 }
 

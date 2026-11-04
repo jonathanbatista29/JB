@@ -1,9 +1,9 @@
 // Editor de telas: arrastar objetos, redimensionar, editar propriedades.
 import { state, on, h, markDirty, uid, confirmBox, toast } from './state.js';
-import { WIDGETS, renderWidget, newWidget } from './widgets.js';
+import { WIDGETS, renderWidget, newWidget, navButton, NAVBTN_DEFAULTS } from './widgets.js';
 
 const GRID = 10;
-let root, stage, props, screenSel, zoomSel, screenEl;
+let root, stage, props, screenSel, zoomSel, screenEl, navPalette;
 let screenId = null, selId = null, zoom = 1, zoomMode = 'fit', grid = true, clipboard = null;
 let boxes = new Map();
 const undo = [];
@@ -17,7 +17,7 @@ export function initEditor(el, { onTest }) {
   // Paleta
   const palette = h('div', { class: 'ed-palette' });
   const groups = {};
-  for (const [type, def] of Object.entries(WIDGETS)) (groups[def.group] ||= []).push([type, def]);
+  for (const [type, def] of Object.entries(WIDGETS)) if (!def.hidden) (groups[def.group] ||= []).push([type, def]);
   for (const [g, list] of Object.entries(groups)) {
     palette.append(h('h4', {}, g));
     for (const [type, def] of list) {
@@ -28,6 +28,8 @@ export function initEditor(el, { onTest }) {
       }, h('span', { class: 'ic' }, def.icon), def.name));
     }
   }
+  navPalette = h('div');
+  palette.append(navPalette);
   palette.append(h('p', { class: 'hint', style: { marginTop: '14px' } },
     'Atalhos: Del apaga, Ctrl+D duplica, Ctrl+C/V copia/cola, Ctrl+Z desfaz, setas movem (Shift = 10px).'));
 
@@ -72,6 +74,7 @@ function renderAll() {
   const s = scr();
   screenId = s.id;
   screenSel.replaceChildren(...state.project.screens.map((x) => h('option', { value: x.id, selected: x.id === s.id }, x.name)));
+  renderNavPalette();
   renderCanvas();
   renderProps();
 }
@@ -89,7 +92,7 @@ function renderCanvas() {
 }
 
 function makeBox(w) {
-  const b = renderWidget(w, { runtime: false, navigate: () => {} });
+  const b = renderWidget(w, { runtime: false, navigate: () => {}, current: screenId });
   boxes.set(w.id, b);
   if (w.id === selId) markSel(b);
   return b;
@@ -185,17 +188,21 @@ function onPointerDown(e) {
 
 function onDrop(e) {
   const type = e.dataTransfer.getData('text/x-widget');
-  if (!type || !screenEl) return;
+  const nav = e.dataTransfer.getData('text/x-navbtn');
+  if ((!type && !nav) || !screenEl) return;
   e.preventDefault();
   const r = screenEl.getBoundingClientRect();
-  addWidget(type, snap((e.clientX - r.left) / zoom), snap((e.clientY - r.top) / zoom));
+  const x = snap((e.clientX - r.left) / zoom), y = snap((e.clientY - r.top) / zoom);
+  if (nav) addNavButton(nav, x, y);
+  else addWidget(type, x, y);
 }
 
 let addOffset = 0;
-function addWidget(type, x, y) {
+function addWidget(type, x, y, initProps) {
   const s = scr();
   if (x == null) { addOffset = (addOffset + 20) % 200; x = 20 + addOffset; y = 80 + addOffset; }
   const w = newWidget(type, x, y);
+  if (initProps) Object.assign(w.props, initProps);
   w.x = Math.min(w.x, Math.max(0, s.width - w.w));
   w.y = Math.min(w.y, Math.max(0, s.height - w.h));
   pushUndo();
@@ -301,6 +308,7 @@ function dupScreen() {
 async function delScreen() {
   if (state.project.screens.length <= 1) return toast('O projeto precisa de pelo menos uma tela', 'err');
   if (!(await confirmBox(`Excluir a tela "${scr().name}"?`))) return;
+  for (const b of state.project.navButtons || []) if (b.screen === screenId) b.screen = '';
   state.project.screens = state.project.screens.filter((s) => s.id !== screenId);
   screenId = null;
   selId = null;
@@ -342,9 +350,115 @@ function inputFor(def, obj, onChange, before = () => {}) {
   }
 }
 
+// ---------- Botões de tela (biblioteca) ----------
+const lib = () => (state.project.navButtons ||= []);
+const screenName = (id) => state.project.screens.find((s) => s.id === id)?.name;
+const usesOf = (id) => state.project.screens.reduce((n, s) => n + s.widgets.filter((w) => w.type === 'navbtn' && w.props?.ref === id).length, 0);
+
+// Cria um botão novo na biblioteca com o próximo número da sequência.
+function createNavButton(screen = '') {
+  const used = new Set(lib().map((b) => Number(b.number)));
+  let n = 1;
+  while (used.has(n)) n++;
+  const name = screenName(screen) || `Botão de tela ${n}`;
+  const b = { ...NAVBTN_DEFAULTS, id: uid('nb'), number: n, name, text: name.toUpperCase(), screen };
+  lib().push(b);
+  markDirty();
+  renderNavPalette();
+  return b;
+}
+
+// Coloca um botão da biblioteca na tela ('new' cria um novo).
+function addNavButton(ref, x, y) {
+  const b = ref === 'new' ? createNavButton() : navButton(ref);
+  if (!b) return;
+  addWidget('navbtn', x, y, { ref: b.id });
+  renderNavPalette();
+}
+
+function renderNavPalette() {
+  if (!navPalette) return;
+  const item = (ref, content, cls = '') => h('div', {
+    class: 'pal-item pal-nav ' + cls, draggable: 'true', title: 'Arraste para a tela ou clique para adicionar',
+    ondragstart: (e) => e.dataTransfer.setData('text/x-navbtn', ref),
+    onclick: () => addNavButton(ref),
+  }, ...content);
+  navPalette.replaceChildren(
+    h('h4', {}, 'Botões de tela'),
+    item('new', [h('span', { class: 'ic' }, '＋'), 'Novo botão de tela'], 'new'),
+    ...[...lib()].sort((a, b) => a.number - b.number).map((b) => item(b.id, [
+      h('span', { class: 'num' }, String(b.number)),
+      h('span', {}, b.name, h('small', {}, '→ ' + (screenName(b.screen) || 'sem tela'))),
+    ])));
+}
+
+// Painel de propriedades de um botão de tela: as alterações valem para todas as cópias.
+function renderNavButtonProps(w) {
+  const b = navButton(w.props.ref);
+  const refSel = h('select', { onchange: (e) => {
+    pushUndo();
+    if (e.target.value === 'new') w.props.ref = createNavButton().id;
+    else w.props.ref = e.target.value;
+    markDirty(); refreshBox(w); renderProps();
+  } },
+    !b ? h('option', { value: '', selected: true }, '(botão excluído)') : '',
+    [...lib()].sort((x, y) => x.number - y.number).map((x) => h('option', { value: x.id, selected: x.id === w.props.ref }, `${x.number} · ${x.name}`)),
+    h('option', { value: 'new' }, '+ Criar novo botão'));
+  const geo = (key, label) => h('label', { class: 'field' }, label, h('input', {
+    type: 'number', value: w[key], onchange: (e) => { pushUndo(); w[key] = Math.max(key === 'w' || key === 'h' ? 10 : 0, Number(e.target.value) || 0); markDirty(); refreshBox(w); },
+  }));
+  const actions = h('div', { class: 'prop-actions' },
+    h('button', { class: 'btn small', onclick: () => duplicate() }, 'Duplicar'),
+    h('button', { class: 'btn small', onclick: () => reorder(true) }, 'Trazer p/ frente'),
+    h('button', { class: 'btn small', onclick: () => reorder(false) }, 'Enviar p/ trás'),
+    h('button', { class: 'btn small danger', onclick: deleteSel }, 'Tirar desta tela'));
+  if (!b) {
+    return props.replaceChildren(h('h4', {}, '⇨ Botão de tela'), field('Botão da biblioteca', refSel, true), actions);
+  }
+  // Edita a definição na biblioteca e redesenha todas as cópias desta tela.
+  const libChange = (key, conv = (x) => x) => (e) => {
+    b[key] = conv(e.target.type === 'checkbox' ? e.target.checked : e.target.value);
+    markDirty();
+    renderCanvas();
+    renderNavPalette();
+    if (key === 'screen' || key === 'name') renderProps();
+  };
+  const color = (key, label) => field(label, h('input', { type: 'color', value: /^#[0-9a-f]{6}$/i.test(b[key]) ? b[key] : '#000000', oninput: libChange(key) }));
+  const uses = usesOf(b.id);
+  props.replaceChildren(
+    h('h4', {}, `⇨ Botão de tela nº ${b.number}`),
+    h('div', { class: 'prop-grid' },
+      field('Botão da biblioteca', refSel, true),
+      geo('x', 'X'), geo('y', 'Y'), geo('w', 'Largura'), geo('h', 'Altura')),
+    h('h4', {}, 'Definição do botão'),
+    h('div', { class: 'lib-note' }, `Usado ${uses} vez(es) no projeto. Mudanças aqui valem para todas as cópias.`),
+    h('div', { class: 'prop-grid', style: { marginTop: '8px' } },
+      field('Nome (na paleta)', h('input', { type: 'text', value: b.name, onchange: libChange('name') }), true),
+      field('Texto do botão', h('input', { type: 'text', value: b.text, onchange: libChange('text') }), true),
+      field('Abre a tela', h('select', { onchange: libChange('screen') },
+        h('option', { value: '' }, '— escolha —'),
+        state.project.screens.map((x) => h('option', { value: x.id, selected: x.id === b.screen }, `${x.number ?? '?'} · ${x.name}`))), true),
+      color('bg', 'Cor de fundo'), color('color', 'Cor do texto'),
+      field('Fonte (px)', h('input', { type: 'number', value: b.fontSize, onchange: libChange('fontSize', Number) })),
+      field('Nível mínimo', h('select', { onchange: libChange('level') },
+        [['', 'Todos'], ['1', 'Operador'], ['2', 'Manutenção'], ['3', 'Engenharia'], ['4', 'Administrador']].map(([v, t]) => h('option', { value: v, selected: String(b.level ?? '') === v }, t))))),
+    actions,
+    h('div', { class: 'prop-actions' },
+      h('button', { class: 'btn small danger', onclick: async () => {
+        if (!(await confirmBox(`Excluir o botão "${b.name}" da biblioteca? Ele sai de ${uses} lugar(es).`))) return;
+        pushUndo();
+        state.project.navButtons = lib().filter((x) => x !== b);
+        for (const s2 of state.project.screens) s2.widgets = s2.widgets.filter((x) => !(x.type === 'navbtn' && x.props?.ref === b.id));
+        selId = null;
+        markDirty();
+        renderAll();
+      } }, 'Excluir da biblioteca')));
+}
+
 function renderProps() {
   const w = selW();
   if (!w) return renderScreenProps();
+  if (w.type === 'navbtn') return renderNavButtonProps(w);
   const def = WIDGETS[w.type];
   const onChange = (pd) => {
     markDirty();
@@ -370,6 +484,29 @@ function renderProps() {
       h('button', { class: 'btn small', onclick: () => reorder(true) }, 'Trazer p/ frente'),
       h('button', { class: 'btn small', onclick: () => reorder(false) }, 'Enviar p/ trás'),
       h('button', { class: 'btn small danger', onclick: deleteSel }, 'Excluir')));
+}
+
+// Na configuração da tela: qual botão da biblioteca chama esta tela.
+function callButtonProps(s) {
+  const linked = lib().filter((b) => b.screen === s.id);
+  const sel = h('select', { onchange: (e) => {
+    const v = e.target.value;
+    if (v === 'new') createNavButton(s.id);
+    else if (v) navButton(v).screen = s.id;
+    markDirty(); renderCanvas(); renderNavPalette(); renderProps();
+  } },
+    h('option', { value: '' }, linked.length ? '— ligar outro botão —' : '— escolha —'),
+    [...lib()].filter((b) => b.screen !== s.id).sort((a, b) => a.number - b.number)
+      .map((b) => h('option', { value: b.id }, `${b.number} · ${b.name}${b.screen ? ' (hoje abre ' + (screenName(b.screen) || '?') + ')' : ''}`)),
+    h('option', { value: 'new' }, '+ Criar botão para esta tela'));
+  return [
+    h('h4', {}, 'Botão de chamada desta tela'),
+    linked.length
+      ? h('div', { class: 'lib-note' }, 'Esta tela é aberta por: ', linked.map((b, i) => [i ? ', ' : '', h('b', {}, `${b.number} · ${b.name}`)]))
+      : h('p', { class: 'hint' }, 'Nenhum botão chama esta tela ainda.'),
+    h('div', { class: 'prop-grid', style: { marginTop: '8px' } }, field('Botão', sel, true)),
+    h('p', { class: 'hint' }, 'Depois arraste o botão da paleta ("Botões de tela") para as telas onde ele deve aparecer.'),
+  ];
 }
 
 const INT_TYPES = ['int16', 'uint16', 'int32', 'uint32'];
@@ -430,6 +567,7 @@ function renderScreenProps() {
       field('Altura (px)', h('input', { type: 'number', value: s.height, onchange: change('height', (v) => Math.max(150, Number(v) || 600)) })),
       field('Cor de fundo', h('input', { type: 'color', value: /^#[0-9a-f]{6}$/i.test(s.bg) ? s.bg : '#1e2530', onchange: change('bg') }), true),
       h('label', { class: 'check full' }, h('input', { type: 'checkbox', checked: s.showInNav !== false, onchange: change('showInNav') }), 'Mostrar no menu de telas')),
+    ...callButtonProps(s),
     ...navProps(s),
     h('h4', {}, 'Como usar'),
     h('p', { class: 'hint' }, '1. Cadastre o PLC na aba "PLCs".'),

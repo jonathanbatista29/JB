@@ -69,7 +69,7 @@ export function show(id) {
 
   for (const b of boxes) b._destroy();
   screenEl = h('div', { class: 'screen', style: { width: scr.width + 'px', height: scr.height + 'px', background: scr.bg } });
-  const rt = { runtime: true, navigate: (sid) => navigate(sid), back };
+  const rt = { runtime: true, navigate: (sid) => navigate(sid), back, current: scr.id };
   boxes = scr.widgets.map((w) => renderWidget(w, rt));
   screenEl.append(...boxes);
   stage.replaceChildren(screenEl);

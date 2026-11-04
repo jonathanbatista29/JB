@@ -68,9 +68,15 @@ No primeiro uso entre com **usuário `admin` e senha `admin`**. O sistema obriga
 
 ## Troca de tela
 
-Uma tela pode ser aberta de três jeitos:
+Uma tela pode ser aberta de quatro jeitos:
 
-1. **Botão**: ação "Ir para outra tela" ou "Voltar à tela anterior".
+1. **Botão de tela (biblioteca)**: cada botão de tela tem um número sequencial (1, 2, 3...) e abre uma tela.
+   Ele pode ser colocado em várias telas, e mudar o texto, cor ou destino muda todas as cópias.
+   - Crie a tela (ex.: "Configuração") e, nas propriedades dela, em "Botão de chamada desta tela",
+     escolha "+ Criar botão para esta tela".
+   - Arraste o botão da paleta ("Botões de tela") para as telas onde ele deve aparecer.
+   - Na operação, o botão da tela que está aberta fica destacado (bom para menus).
+1. **Botão comum**: ação "Ir para outra tela" ou "Voltar à tela anterior".
 2. **Bit do PLC (BOOL)**: no Editor, sem nenhum objeto selecionado, escolha em "Abrir quando este BOOL ligar".
    A tela abre quando o bit liga. Marque "Desligar o bit depois de abrir" para a IHM zerar o bit sozinha.
 3. **Número pelo PLC (INT/DINT)**: cada tela tem um "Número da tela". Escolha o "Tag com o nº da tela a abrir":
