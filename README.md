@@ -113,6 +113,16 @@ No primeiro uso entre com **usuário `admin` e senha `admin`**. O sistema obriga
 - Esqueceu a senha do admin? Pare o servidor e apague `data/users.json`: o usuário `admin`/`admin` é recriado
   (os outros usuários serão perdidos).
 
+## Imagens nas telas
+
+- **Objeto Imagem** (paleta → Básico): escolha a imagem no painel da direita ou clique em "⬆ Enviar imagem".
+- **Arrastar arquivo**: solte um arquivo de imagem do computador direto na tela do editor; ele é enviado e
+  vira um objeto Imagem do tamanho certo.
+- **Imagem que muda com o tag**: escolha um tag e a "imagem quando o tag ligar" (ex.: máquina parada/ligada).
+- **Imagem de fundo da tela**: nas propriedades da tela (sem objeto selecionado), com ajuste preencher, caber ou esticar.
+- **Biblioteca**: botão "Biblioteca" mostra as imagens do projeto; dá para reaproveitar e excluir as que não estão em uso.
+- Formatos PNG, JPG, GIF, WEBP e SVG, até 5 MB. Ficam em `data/projects/<endereço>/imagens/` e vão junto nos backups.
+
 ## Troca de tela
 
 Uma tela pode ser aberta de quatro jeitos:
@@ -210,6 +220,7 @@ server/            servidor Node.js
   historian.js     histórico em banco SQLite
   navigator.js     troca de tela pelo PLC
   gateway.js       cópia de valores entre equipamentos
+  images.js        imagens das telas
   tagManager.js    leitura cíclica, escrita e alarmes
   drivers/         simulator, modbus (TCP/RTU), s7, logix (CompactLogix), scpi (multímetro)
   models.js        modelos de PLC pré-configurados
@@ -220,7 +231,7 @@ public/            interface web (sem build)
   js/pages.js      Tags, PLCs e Alarmes
   projects.html    lista de projetos (js/projects.js)
 data/
-  projects/<endereço>/  project.json, backups/ (versões), historico.db, estado.json (modo)
+  projects/<endereço>/  project.json, backups/ (versões), imagens/, historico.db, estado.json (modo)
   users.json            usuários
   sistema.db            registro de ações
   lixeira/              projetos excluídos

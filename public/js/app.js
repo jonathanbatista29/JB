@@ -136,20 +136,23 @@ async function save() {
   }
 }
 
+// Backup completo (configuração + imagens) gerado pelo servidor.
 function exportProject() {
-  const blob = new Blob([JSON.stringify(state.project, null, 2)], { type: 'application/json' });
-  const a = h('a', { href: URL.createObjectURL(blob), download: (state.project.name || 'projeto').replace(/\W+/g, '_') + '.json' });
-  document.body.append(a);
-  a.click();
-  a.remove();
+  const slug = location.pathname.split('/').filter(Boolean)[0];
+  if (state.dirty) toast('Atenção: o backup contém a última versão SALVA do projeto', 'err');
+  location.href = `/api/projects/${encodeURIComponent(slug)}/export`;
 }
 
 function importProject(file) {
   const r = new FileReader();
-  r.onload = () => {
+  r.onload = async () => {
     try {
-      const p = JSON.parse(r.result);
-      if (!Array.isArray(p.screens) || !Array.isArray(p.tags)) throw new Error('Arquivo não é um projeto válido');
+      const data = JSON.parse(r.result);
+      const p = data?.jbihm === 'projeto' ? data.project : data;
+      if (!Array.isArray(p?.screens) || !Array.isArray(p?.tags)) throw new Error('Arquivo não é um projeto válido');
+      for (const [file, img] of Object.entries(data?.images || {})) {
+        await api('api/images', { method: 'POST', body: { file, name: file, data: img } });
+      }
       p.connections ||= [];
       p.alarms ||= [];
       setProject(p);

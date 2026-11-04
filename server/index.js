@@ -10,6 +10,7 @@ const models = require('./models');
 const auth = require('./auth');
 const { Historian } = require('./historian');
 const { ProjectManager } = require('./projects');
+const images = require('./images');
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -28,7 +29,7 @@ const pm = new ProjectManager();
 pm.start({ systemHistorian: systemHist });
 
 const app = express();
-app.use(express.json({ limit: '20mb' }));
+app.use(express.json({ limit: '80mb' })); // backups levam as imagens junto
 
 // ---------- Utilidades ----------
 const session = (req, res, next) => {
@@ -106,12 +107,14 @@ root.get('/projects', need(LV.VIEW), (req, res) => res.json(pm.list()));
 
 // Novo projeto: vazio, exemplo, cópia de outro ou importado de um arquivo.
 root.post('/projects', need(LV.ENG), wrap((req) => {
-  const { name, template, from, project } = req.body || {};
+  const { name, template, from, project, images: imgs } = req.body || {};
   let base = null;
   if (project) base = project;
   else if (from) base = rtOf(from).project;
   else if (template === 'demo') base = storage.demoProject();
   const rt = pm.create(name, base);
+  // Imagens: do backup importado ou copiadas do projeto de origem.
+  images.importAll(rt.dir, imgs || (from ? images.exportAll(rtOf(from).dir) : null));
   auth.log(req.who, 'Criou projeto', `${rt.project.name} (/${rt.slug}/)${from ? ' cópia de ' + from : project ? ' importado' : ''}`);
   refreshSockets();
   return { ok: true, slug: rt.slug };
@@ -136,7 +139,7 @@ root.delete('/projects/:slug', need(LV.ADMIN), wrap(async (req) => {
 root.get('/projects/:slug/export', need(LV.ENG), wrap((req, res) => {
   const rt = rtOf(req.params.slug);
   download(res, `${rt.slug}_${stamp()}.json`, 'application/json');
-  res.send(JSON.stringify({ jbihm: 'projeto', version: 1, exportedAt: new Date().toISOString(), slug: rt.slug, project: rt.project }, null, 2));
+  res.send(JSON.stringify({ jbihm: 'projeto', version: 1, exportedAt: new Date().toISOString(), slug: rt.slug, project: rt.project, images: images.exportAll(rt.dir) }, null, 2));
   auth.log(req.who, 'Backup do projeto', `/${rt.slug}/`);
 }));
 
@@ -162,7 +165,7 @@ root.post('/projects/:slug/versions/:file/restore', need(LV.ENG), blockInProduct
 
 // Backup geral: todos os projetos num arquivo só (sem usuários e sem histórico).
 root.get('/backup', need(LV.ADMIN), wrap((req, res) => {
-  const projects = [...pm.runtimes.values()].map((rt) => ({ slug: rt.slug, project: rt.project }));
+  const projects = [...pm.runtimes.values()].map((rt) => ({ slug: rt.slug, project: rt.project, images: images.exportAll(rt.dir) }));
   download(res, `jbihm_backup_geral_${stamp()}.json`, 'application/json');
   res.send(JSON.stringify({ jbihm: 'backup', version: 1, exportedAt: new Date().toISOString(), projects }, null, 2));
   auth.log(req.who, 'Backup geral', `${projects.length} projeto(s)`);
@@ -174,10 +177,12 @@ root.post('/backup/restore', need(LV.ADMIN), wrap(async (req) => {
   const out = { created: [], replaced: [] };
   for (const item of b.projects) {
     const rt = pm.get(item.slug);
-    if (rt && b.overwrite) { await rt.apply(item.project); out.replaced.push(item.slug); }
+    if (rt && b.overwrite) { images.importAll(rt.dir, item.images); await rt.apply(item.project); out.replaced.push(item.slug); }
     else {
       const name = (item.project?.name || item.slug) + (rt ? ' (restaurado)' : '');
-      out.created.push(pm.create(name, item.project, item.slug).slug);
+      const nrt = pm.create(name, item.project, item.slug);
+      images.importAll(nrt.dir, item.images);
+      out.created.push(nrt.slug);
     }
   }
   auth.log(req.who, 'Restaurou backup geral', `novos: ${out.created.join(', ') || '-'}; substituídos: ${out.replaced.join(', ') || '-'}`);
@@ -253,6 +258,22 @@ proj.get('/history.csv', need(LV.VIEW), wrap((req, res) => {
 proj.get('/alarm-history', need(LV.VIEW), wrap((req) => req.rt.hist.alarms(range(req, Infinity))));
 proj.get('/history/stats', need(LV.VIEW), (req, res) => res.json(req.rt.hist.stats()));
 
+// Imagens do projeto (biblioteca usada pelas telas)
+proj.get('/images', need(LV.VIEW), (req, res) => {
+  const used = images.usedBy(req.rt.project);
+  res.json(images.list(req.rt.dir).map((i) => ({ ...i, used: used.has(i.file) })));
+});
+proj.post('/images', need(LV.ENG), blockInProduction, wrap((req) => {
+  const file = images.save(req.rt.dir, req.body || {});
+  auth.log(req.who, 'Enviou imagem', `/${req.rt.slug}/: ${file}`);
+  return { ok: true, file };
+}));
+proj.delete('/images/:file', need(LV.ENG), blockInProduction, wrap((req) => {
+  if (images.usedBy(req.rt.project).has(req.params.file)) throw new Error('Imagem em uso numa tela salva. Tire das telas e salve antes de excluir.');
+  images.remove(req.rt.dir, req.params.file);
+  auth.log(req.who, 'Excluiu imagem', `/${req.rt.slug}/: ${req.params.file}`);
+}));
+
 function csvDate(ts) {
   const d = new Date(ts), p = (n, l = 2) => String(n).padStart(l, '0');
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}`;
@@ -268,6 +289,17 @@ async function doWrite(rt, level, who, tagName, value) {
 }
 
 app.use('/:slug/api', proj);
+// Arquivos de imagem: só para quem pode ver o projeto. CSP impede scripts (ex.: em SVG aberto direto).
+app.get('/:slug/imagens/:file', session, (req, res, next) => {
+  if (!req.rt) return next();
+  if (req.level < LV.VIEW) return res.status(401).end();
+  const f = images.filePath(req.rt.dir, req.params.file);
+  if (!f) return res.status(404).end();
+  res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; img-src data:");
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Cache-Control', 'private, max-age=300');
+  res.type(images.MIME[f.split('.').pop()]).sendFile(f);
+});
 app.use('/:slug', (req, res, next) => (req.rt ? express.static(PUBLIC)(req, res, next) : next()));
 
 app.use((req, res) => {

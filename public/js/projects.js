@@ -202,7 +202,7 @@ async function importProject(data) {
   const r = await askName({ title: 'Importar projeto', value: project.name || 'Projeto importado', ok: 'Importar' });
   if (!r) return;
   try {
-    const { slug } = await api('api/projects', { method: 'POST', body: { name: r.name, project } });
+    const { slug } = await api('api/projects', { method: 'POST', body: { name: r.name, project, images: data?.images } });
     toast(`Projeto importado em /${slug}/`, 'ok');
     render();
   } catch (e) { toast(e.message, 'err'); }
@@ -216,6 +216,10 @@ async function restoreInto(p, data) {
   const when = data?.exportedAt ? ` (backup de ${fmtDate(data.exportedAt)})` : '';
   if (!(await confirmBox(`Substituir "${p.name}" pelo backup "${project.name || '?'}"${when}? A configuração atual é guardada em "Versões salvas" e pode ser recuperada. O endereço /${p.slug}/ continua o mesmo.`))) return;
   try {
+    // Primeiro as imagens do backup (mesmos nomes de arquivo), depois a configuração.
+    for (const [file, img] of Object.entries(data?.images || {})) {
+      await api(`${p.slug}/api/images`, { method: 'POST', body: { file, name: file, data: img } });
+    }
     await api(`${p.slug}/api/project`, { method: 'PUT', body: { ...project, name: p.name } });
     toast('Backup restaurado', 'ok');
     render();

@@ -321,6 +321,34 @@ export const WIDGETS = {
     },
   },
 
+  image: {
+    name: 'Imagem', icon: '🖼', size: [200, 150], group: 'Básico',
+    defaults: { src: '', srcOn: '', tag: '', fit: 'contain', radius: 0, opacity: 100, invert: false },
+    props: [
+      { key: 'src', label: 'Imagem', kind: 'image', full: true },
+      { key: 'fit', label: 'Ajuste', kind: 'select', full: true, options: [['contain', 'Caber inteira (sem cortar)'], ['cover', 'Preencher (corta as bordas)'], ['fill', 'Esticar']] },
+      { key: 'radius', label: 'Arredondamento', kind: 'number' }, { key: 'opacity', label: 'Opacidade (%)', kind: 'number' },
+      { key: 'tag', label: 'Trocar de imagem pelo tag (opcional)', kind: 'tag', full: true },
+      { key: 'srcOn', label: 'Imagem quando o tag ligar', kind: 'image', full: true, showIf: (p) => Boolean(p.tag) },
+      { key: 'invert', label: 'Inverter lógica', kind: 'bool', full: true, showIf: (p) => Boolean(p.tag) }],
+    render(w) {
+      const p = w.props;
+      const img = h('img', { class: 'w-image', alt: '', draggable: 'false',
+        style: { objectFit: p.fit || 'contain', borderRadius: num(p.radius) + 'px', opacity: Math.max(0, Math.min(100, num(p.opacity, 100))) / 100 } });
+      const empty = h('div', { class: 'w-image-empty' }, '🖼 Escolha uma imagem');
+      const el = h('div', { style: { width: '100%', height: '100%', position: 'relative' } }, img, empty);
+      el._update = () => {
+        const on = p.tag ? isOn(tagValue(p.tag)) !== Boolean(p.invert) : false;
+        const file = on && p.srcOn ? p.srcOn : p.src;
+        const url = file ? 'imagens/' + encodeURIComponent(file) : '';
+        if (img.getAttribute('src') !== url) url ? img.setAttribute('src', url) : img.removeAttribute('src');
+        img.style.display = url ? '' : 'none';
+        empty.style.display = url ? 'none' : '';
+      };
+      return el;
+    },
+  },
+
   symbol: {
     name: 'Motor / Bomba / Válvula', icon: '⚙', size: [90, 90], group: 'Indicadores',
     defaults: { tag: '', symbol: 'motor', onColor: '#2ecc71', offColor: '#7f8c8d', faultTag: '', blink: false },

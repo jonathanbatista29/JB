@@ -1,6 +1,7 @@
 // Editor de telas: arrastar objetos, redimensionar, editar propriedades.
 import { state, on, h, markDirty, uid, confirmBox, toast } from './state.js';
 import { WIDGETS, renderWidget, newWidget, navButton, NAVBTN_DEFAULTS } from './widgets.js';
+import { loadImages, imagePicker, uploadFile, screenBackground, imgUrl } from './images.js';
 
 const GRID = 10;
 let root, stage, props, screenSel, zoomSel, screenEl, navPalette;
@@ -67,6 +68,7 @@ export function initEditor(el, { onTest }) {
 
 export function refreshEditor() {
   renderAll();
+  loadImages().then(() => renderProps());
 }
 
 function renderAll() {
@@ -84,7 +86,7 @@ function renderCanvas() {
   const s = scr();
   for (const b of boxes.values()) b._destroy();
   boxes = new Map();
-  screenEl = h('div', { class: 'screen' + (grid ? ' grid' : ''), style: { width: s.width + 'px', height: s.height + 'px', background: s.bg } });
+  screenEl = h('div', { class: 'screen' + (grid ? ' grid' : ''), style: { width: s.width + 'px', height: s.height + 'px', ...screenBackground(s) } });
   for (const w of s.widgets) screenEl.append(makeBox(w));
   screenEl.addEventListener('pointerdown', onPointerDown);
   screenEl.addEventListener('dblclick', (e) => { const box = e.target.closest('.wgt'); if (box) startInlineEdit(box.dataset.id); });
@@ -191,12 +193,29 @@ function onPointerDown(e) {
 function onDrop(e) {
   const type = e.dataTransfer.getData('text/x-widget');
   const nav = e.dataTransfer.getData('text/x-navbtn');
-  if ((!type && !nav) || !screenEl) return;
+  const files = [...(e.dataTransfer.files || [])].filter((f) => f.type.startsWith('image/'));
+  if ((!type && !nav && !files.length) || !screenEl) return;
   e.preventDefault();
   const r = screenEl.getBoundingClientRect();
   const x = snap((e.clientX - r.left) / zoom), y = snap((e.clientY - r.top) / zoom);
+  if (files.length) return dropImages(files, x, y);
   if (nav) addNavButton(nav, x, y);
   else addWidget(type, x, y);
+}
+
+// Arquivo de imagem solto na tela: envia e cria um objeto Imagem do tamanho proporcional.
+async function dropImages(files, x, y) {
+  for (const f of files) {
+    try {
+      const file = await uploadFile(f);
+      const size = await new Promise((res) => { const im = new Image(); im.onload = () => res([im.naturalWidth, im.naturalHeight]); im.onerror = () => res([200, 150]); im.src = imgUrl(file); });
+      const k = Math.min(1, 300 / Math.max(size[0], size[1], 1));
+      addWidget('image', x, y, { src: file });
+      const w = selW();
+      if (w) { w.w = Math.max(20, Math.round(size[0] * k)); w.h = Math.max(20, Math.round(size[1] * k)); refreshBox(w); renderProps(); }
+      x += 20; y += 20;
+    } catch (e) { toast(e.message, 'err'); }
+  }
 }
 
 let addOffset = 0;
@@ -345,6 +364,7 @@ function inputFor(def, obj, onChange, before = () => {}) {
       if (v && !tags.some((t) => t.name === v)) sel.append(h('option', { value: v, selected: true }, `${v} (não existe!)`));
       return sel;
     }
+    case 'image': return imagePicker(v, (val) => { set(val); renderProps(); });
     case 'screen': return h('select', { onchange: (e) => set(e.target.value) },
       h('option', { value: '' }, '— escolha —'),
       state.project.screens.map((s) => h('option', { value: s.id, selected: s.id === v }, `${s.number ?? '?'} · ${s.name}`)));
@@ -518,7 +538,7 @@ function renderProps() {
   const onChange = (pd) => {
     markDirty();
     refreshBox(w);
-    if (pd.kind === 'select' || pd.kind === 'bool') renderProps();
+    if (pd.kind === 'select' || pd.kind === 'bool' || pd.kind === 'tag') renderProps();
   };
   const geo = (key, label) => h('label', { class: 'field' }, label, h('input', {
     type: 'number', value: w[key], onchange: (e) => {
@@ -622,6 +642,9 @@ function renderScreenProps() {
       field('Largura (px)', h('input', { type: 'number', value: s.width, onchange: change('width', (v) => Math.max(200, Number(v) || 1024)) })),
       field('Altura (px)', h('input', { type: 'number', value: s.height, onchange: change('height', (v) => Math.max(150, Number(v) || 600)) })),
       field('Cor de fundo', h('input', { type: 'color', value: /^#[0-9a-f]{6}$/i.test(s.bg) ? s.bg : '#1e2530', onchange: change('bg') }), true),
+      field('Imagem de fundo', imagePicker(s.bgImage || '', (v) => { s.bgImage = v; markDirty(); renderCanvas(); renderProps(); }), true),
+      s.bgImage ? field('Ajuste do fundo', h('select', { onchange: change('bgFit') },
+        [['cover', 'Preencher a tela'], ['contain', 'Caber inteira'], ['stretch', 'Esticar']].map(([v, t]) => h('option', { value: v, selected: (s.bgFit || 'cover') === v }, t))), true) : '',
       h('label', { class: 'check full' }, h('input', { type: 'checkbox', checked: s.showInNav !== false, onchange: change('showInNav') }), 'Mostrar no menu de telas'),
       h('label', { class: 'check full', title: 'Abre ao colocar o projeto em produção e quando um painel é aberto em produção' },
         h('input', { type: 'checkbox', checked: (state.project.startScreen || state.project.screens[0]?.id) === s.id,

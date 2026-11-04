@@ -1,6 +1,7 @@
 // Modo operação: a tela que o operador usa no dia a dia.
 import { state, on, h, ackAlarm, reportScreen, toast } from './state.js';
 import { renderWidget } from './widgets.js';
+import { screenBackground } from './images.js';
 
 let root, stage, nav, alarmBar, screenEl, clock;
 let current = null;
@@ -68,7 +69,7 @@ export function show(id) {
     clock);
 
   for (const b of boxes) b._destroy();
-  screenEl = h('div', { class: 'screen', style: { width: scr.width + 'px', height: scr.height + 'px', background: scr.bg } });
+  screenEl = h('div', { class: 'screen', style: { width: scr.width + 'px', height: scr.height + 'px', ...screenBackground(scr) } });
   const rt = { runtime: true, navigate: (sid) => navigate(sid), back, current: scr.id };
   boxes = scr.widgets.map((w) => renderWidget(w, rt));
   screenEl.append(...boxes);
