@@ -44,6 +44,7 @@ function normalize(p) {
     mode: b.mode === 'pulse' ? 'pulse' : 'change',
     gain: b.gain === '' || b.gain == null ? 1 : Number(b.gain), offset: Number(b.offset) || 0,
     value: b.value ?? '', resetSource: Boolean(b.resetSource),
+    condTag: String(b.condTag || ''), condValue: b.condValue === '' || b.condValue == null ? '' : Number(b.condValue),
   }));
   const nav = out.navigation && typeof out.navigation === 'object' ? out.navigation : {};
   out.navigation = { requestTag: String(nav.requestTag || ''), resetRequest: Boolean(nav.resetRequest), currentTag: String(nav.currentTag || '') };

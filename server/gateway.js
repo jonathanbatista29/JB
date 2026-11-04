@@ -8,6 +8,8 @@ const { EventEmitter } = require('events');
 //   change: copia sempre que a origem muda (e reenvia quando o destino reconecta)
 //   pulse : só quando a origem liga (0 -> 1); opcionalmente desliga a origem depois
 // A origem também pode ser o status de uma conexão: "@status:<id>" (1 = online, 0 = offline).
+// Condição opcional: a ponte só copia quando outro tag tem um valor (ex.: função do multímetro = 2),
+// assim cada função do multímetro pode ir para uma memória diferente do PLC.
 class Gateway extends EventEmitter {
   constructor(tm) {
     super();
@@ -34,7 +36,20 @@ class Gateway extends EventEmitter {
   }
 
   onValues(changed) {
-    for (const b of this.bridges) if (b.enabled !== false && changed[b.source]) this.handle(b, changed[b.source]);
+    for (const b of this.bridges) {
+      if (b.enabled === false) continue;
+      // Mudança só na condição não copia: espera a próxima leitura da origem, já feita com a função nova.
+      if (changed[b.source]) this.handle(b, changed[b.source]);
+    }
+  }
+
+  // Condição da ponte satisfeita? (sem condição = sempre)
+  condOk(b) {
+    if (!b.condTag) return true;
+    const c = this.tm.values[b.condTag];
+    if (!c || c.q !== 'good') return false;
+    const v = typeof c.v === 'boolean' ? (c.v ? 1 : 0) : Number(c.v);
+    return v === Number(b.condValue);
   }
 
   onStatus(status) {
@@ -65,6 +80,7 @@ class Gateway extends EventEmitter {
   handle(b, val) {
     const s = this.st.get(b.id);
     if (!s || !val || val.q !== 'good' || val.v == null) return;
+    if (!this.condOk(b)) { s.prevSrc = undefined; s.sent = undefined; return; }
     const raw = val.v;
     if (b.mode === 'pulse') {
       const on = raw === true || (typeof raw === 'number' && raw !== 0);

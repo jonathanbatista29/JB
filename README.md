@@ -122,6 +122,12 @@ Valores de sobrecarga (OL, 9,9E37) aparecem como qualidade ruim.
 - Comando ao ligar (pulso): bit do PLC ➜ `DMM_Reset`, com opção de desligar o bit depois.
 - Status da conexão: manda 1/0 para o PLC saber se o multímetro está online.
 - Quando um equipamento reconecta, o último valor é reenviado.
+- **Só quando**: a ligação copia apenas quando outro tag tem um valor. Assim cada função do multímetro
+  vai para uma memória própria do PLC (ex.: medida ➜ `PLC_VDC` só quando a função = 1, ➜ `PLC_VAC` quando = 2).
+  O botão **"+ Medida por função"** cria essas ligações para todas as funções de uma vez; a memória de cada
+  função guarda o último valor enquanto o multímetro mede outra coisa.
+
+O manual de programação do DM858 está em [`docs/DM858_ProgrammingGuide_EN.pdf`](docs/DM858_ProgrammingGuide_EN.pdf).
 
 ## Histórico
 

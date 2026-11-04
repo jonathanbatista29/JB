@@ -248,3 +248,7 @@ input[type=datetime-local] { background: var(--bg); border: 1px solid var(--line
 .gw-status { min-width: 160px; font-size: 12px; }
 .ok-txt { color: var(--ok); }
 .err-txt { color: #ff8a80; }
+
+.gw-cond { display: flex; gap: 6px; align-items: flex-end; flex-basis: 100%; }
+.gw-cond select { min-width: 120px !important; }
+.gw-wizard { width: 640px; max-width: 100%; }
