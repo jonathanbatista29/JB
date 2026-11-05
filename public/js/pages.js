@@ -146,6 +146,24 @@ export function renderTags() {
 
 // ---------- Importar tags do PLC (CompactLogix / ControlLogix) ----------
 const TYPE_LABEL = Object.fromEntries(TYPES);
+// Bits que dá para endereçar dentro de um inteiro (ex.: explorar.0 ... explorar.31).
+const BIT_MAX = { SINT: 7, USINT: 7, INT: 15, UINT: 15, DINT: 31, UDINT: 31 };
+
+// "0-7, 10, 12-15" -> [0..7, 10, 12..15]; "*" ou "todos" -> todos os bits. Lança erro se inválido.
+export function parseBits(text, max) {
+  const t = String(text || '').trim().toLowerCase();
+  if (!t) return [];
+  if (t === '*' || t === 'todos' || t === 'tudo') return Array.from({ length: max + 1 }, (_, i) => i);
+  const out = new Set();
+  for (const part of t.split(/[,;\s]+/).filter(Boolean)) {
+    const m = part.match(/^(\d+)(?:-(\d+))?$/);
+    if (!m) throw new Error(`"${part}" não é um bit válido`);
+    const a = Number(m[1]), b = m[2] != null ? Number(m[2]) : a;
+    if (a > b || b > max) throw new Error(`Bits vão de 0 a ${max}`);
+    for (let i = a; i <= b; i++) out.add(i);
+  }
+  return [...out].sort((x, y) => x - y);
+}
 async function importFromPlc() {
   const p = state.project;
   const conns = p.connections.filter((c) => c.driver === 'logix');
@@ -155,7 +173,8 @@ async function importFromPlc() {
   const tbody = h('tbody');
   const info = h('div', { class: 'hint' }, 'Carregando a lista de tags do PLC…');
   const btnOk = h('button', { class: 'btn primary', disabled: true }, 'Criar tags');
-  const picked = new Map(); // endereço -> item
+  const picked = new Map(); // endereço -> item (cria o tag do inteiro/real/etc.)
+  const bitSel = new Map(); // endereço -> { item, text, bits } (cria um BOOL para cada bit)
   let list = [];
   const existing = () => new Set(p.tags.filter((t) => t.connection === connSel.value).map((t) => String(t.address).toLowerCase()));
   const nameFor = (addr) => {
@@ -173,8 +192,28 @@ async function importFromPlc() {
       const ok = Boolean(x.type);
       const cb = h('input', { type: 'checkbox', checked: picked.has(x.address), disabled: !ok,
         onchange: (e) => { e.target.checked ? picked.set(x.address, x) : picked.delete(x.address); upd(); } });
+      const max = BIT_MAX[x.plcType];
+      let bitsTd = h('td', {});
+      if (max != null) {
+        const inp = h('input', { type: 'text', class: 'bits-in', placeholder: `ex.: 0-${Math.min(7, max)}`, value: bitSel.get(x.address)?.text || '',
+          title: `Bits de 0 a ${max}. Exemplos: 0-7 · 0,1,5 · * (todos)` });
+        inp.addEventListener('input', () => {
+          try {
+            const bits = parseBits(inp.value, max);
+            inp.classList.remove('bad');
+            inp.title = bits.length ? `Cria ${bits.length} tag(s) BOOL: ${x.address}.${bits[0]}${bits.length > 1 ? ' … ' + x.address + '.' + bits.at(-1) : ''}` : `Bits de 0 a ${max}`;
+            bits.length ? bitSel.set(x.address, { item: x, text: inp.value, bits }) : bitSel.delete(x.address);
+          } catch (e) {
+            inp.classList.add('bad');
+            inp.title = e.message;
+            bitSel.delete(x.address);
+          }
+          upd();
+        });
+        bitsTd = h('td', {}, inp);
+      }
       return h('tr', { class: ok ? '' : 'disabled-row', title: ok ? '' : 'Tipo não suportado pela IHM' },
-        h('td', {}, cb), h('td', {}, x.address), h('td', {}, x.plcType), h('td', {}, ok ? TYPE_LABEL[x.type] : '—'),
+        h('td', {}, cb), h('td', {}, x.address), h('td', {}, x.plcType), h('td', {}, ok ? TYPE_LABEL[x.type] : '—'), bitsTd,
         h('td', {}, have.has(x.address.toLowerCase()) ? '✔ já existe' : ''));
     }));
     info.textContent = `${list.length} tag(s) no PLC · ${rows.length} na busca${rows.length > shown.length ? ` (mostrando ${shown.length}; refine a busca)` : ''}`;
@@ -182,9 +221,22 @@ async function importFromPlc() {
     selAll.onchange = () => { for (const x of shown) if (x.type) selAll.checked ? picked.set(x.address, x) : picked.delete(x.address); draw(); upd(); };
   }
   const selAll = h('input', { type: 'checkbox', title: 'Marcar todos os mostrados' });
-  const upd = () => { btnOk.disabled = !picked.size; btnOk.textContent = picked.size ? `Criar ${picked.size} tag(s)` : 'Criar tags'; };
+  // Total a criar: tags marcados + um BOOL por bit (sem repetir os que já existem).
+  const toCreate = () => {
+    const have = existing();
+    const out = [];
+    for (const x of picked.values()) if (!have.has(x.address.toLowerCase())) out.push({ address: x.address, type: x.type, desc: x.program ? `${x.plcType} (programa ${x.program})` : x.plcType });
+    for (const { item, bits } of bitSel.values()) {
+      for (const b of bits) {
+        const address = `${item.address}.${b}`;
+        if (!have.has(address.toLowerCase())) out.push({ address, type: 'bool', desc: `bit ${b} de ${item.address} (${item.plcType})` });
+      }
+    }
+    return out;
+  };
+  const upd = () => { const n = toCreate().length; btnOk.disabled = !n; btnOk.textContent = n ? `Criar ${n} tag(s)` : 'Criar tags'; };
   async function load() {
-    picked.clear(); upd();
+    picked.clear(); bitSel.clear(); upd();
     info.textContent = 'Carregando a lista de tags do PLC…';
     tbody.replaceChildren();
     try {
@@ -199,11 +251,11 @@ async function importFromPlc() {
   onlyNew.addEventListener('change', draw);
   connSel.addEventListener('change', load);
   btnOk.addEventListener('click', () => {
-    for (const x of picked.values()) {
-      p.tags.push({ name: nameFor(x.address), connection: connSel.value, address: x.address, type: x.type, access: 'RW',
-        description: x.program ? `${x.plcType} (programa ${x.program})` : x.plcType });
+    const items = toCreate();
+    for (const x of items) {
+      p.tags.push({ name: nameFor(x.address), connection: connSel.value, address: x.address, type: x.type, access: 'RW', description: x.desc });
     }
-    const n = picked.size;
+    const n = items.length;
     markDirty();
     closeModal();
     tagConnFilter = connSel.value;
@@ -212,12 +264,12 @@ async function importFromPlc() {
   });
   openModal(h('div', { class: 'import-dialog' },
     h('h3', {}, '⬇ Importar tags do PLC'),
-    h('p', { class: 'hint', style: { margin: 0 } }, 'Lista lida do CompactLogix/ControlLogix ao conectar (opção "Ler lista de tags do PLC ao conectar" ligada e conexão salva). Marque os tags e clique em Criar. Para arrays, troque o [0] pelo elemento desejado depois.'),
+    h('p', { class: 'hint', style: { margin: 0 } }, 'Lista lida do CompactLogix/ControlLogix ao conectar (opção "Ler lista de tags do PLC ao conectar" ligada e conexão salva). Marque os tags e clique em Criar. Para usar bits de um DINT/INT/SINT como BOOL, digite os bits na coluna "Bits" (ex.: 0-7, 0,1,5 ou * para todos). Para arrays, troque o [0] pelo elemento desejado depois.'),
     h('div', { class: 'prop-grid' }, h('label', { class: 'field' }, 'PLC', connSel), h('label', { class: 'field' }, 'Buscar', search)),
     h('label', { class: 'check' }, onlyNew, 'Esconder os que já existem na IHM'),
     info,
     h('div', { class: 'table-wrap', style: { maxHeight: '50vh', overflow: 'auto' } }, h('table', { class: 'grid' },
-      h('thead', {}, h('tr', {}, h('th', {}, selAll), ...['Endereço no PLC', 'Tipo no PLC', 'Tipo na IHM', ''].map((c) => h('th', {}, c)))), tbody)),
+      h('thead', {}, h('tr', {}, h('th', {}, selAll), ...['Endereço no PLC', 'Tipo no PLC', 'Tipo na IHM', 'Bits (BOOL)', ''].map((c) => h('th', {}, c)))), tbody)),
     h('div', { class: 'confirm-actions' }, h('button', { class: 'btn', onclick: closeModal }, 'Cancelar'), btnOk)));
   load();
 }

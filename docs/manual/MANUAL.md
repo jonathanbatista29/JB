@@ -259,6 +259,18 @@ Em vez de digitar, escolha os tags na lista do próprio PLC:
 
 Para arrays, a lista mostra o elemento `[0]`: troque pelo elemento desejado depois. Tipos sem suporte (ex.: LINT) aparecem desabilitados.
 
+**Bits de um DINT/INT/SINT como BOOL:** na coluna **Bits (BOOL)**, digite os bits que quer usar. A IHM cria um tag BOOL para cada bit,
+com nome pronto. Exemplo: no DINT `explorar`, digite `0-1` → cria `explorar_0` (endereço `explorar.0`) e `explorar_1` (`explorar.1`).
+
+| Digite | Cria |
+|---|---|
+| `0-7` | bits 0 a 7 |
+| `0,1,5` | bits 0, 1 e 5 |
+| `*` | todos (DINT: 0 a 31 · INT: 0 a 15 · SINT: 0 a 7) |
+
+Não precisa marcar o próprio DINT para criar os bits. Bits que já existem são pulados. Se o DINT já existe na IHM,
+desmarque **"Esconder os que já existem"** para vê-lo na lista. A escrita de um bit só muda aquele bit no PLC.
+
 **Exemplos de endereço:**
 
 | Driver | Exemplos |

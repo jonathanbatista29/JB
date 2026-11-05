@@ -355,3 +355,5 @@ table.grid.cols-fixed td, table.grid.cols-fixed th { overflow: hidden; overflow-
 
 .import-dialog { width: 760px; max-width: 100%; display: flex; flex-direction: column; gap: 10px; }
 .import-dialog h3 { margin: 0; }
+.import-dialog .bits-in { width: 90px; padding: 3px 6px; }
+.import-dialog .bits-in.bad { border-color: var(--err); background: #3a1512; }
