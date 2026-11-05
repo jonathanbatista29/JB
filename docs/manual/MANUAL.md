@@ -293,6 +293,23 @@ Aba **🔔 Alarmes**.
 3. Salve. Quando o alarme acontece, aparece a faixa vermelha na operação.
 4. **Reconhecer** confirma que o operador viu. O **histórico de eventos** guarda quem reconheceu e quando.
 
+### Alarmes numa tela
+
+No Editor de Telas, arraste o objeto **🔔 Alarmes (lista / indicador)** para a tela:
+
+- **Lista de alarmes ativos**: mostra hora, prioridade, mensagem, tag e valor (escolha as colunas), com os alarmes
+  sem reconhecer piscando e o botão **OK** / **Reconhecer todos**.
+- **Indicador**: um quadro com a quantidade de alarmes — vermelho piscando quando há alarme sem reconhecer,
+  verde com "SEM ALARMES" quando está tudo normal. Tocar nele abre a página de alarmes.
+- **Mostrar a partir da prioridade**: todas, média e alta, ou só alta.
+
+### Organizar a página de alarmes
+
+- Clique no título de cada parte (**Alarmes ativos**, **Configuração de alarmes**, **Últimos eventos**) para
+  **minimizar ou expandir**. A escolha fica guardada.
+- Para **aumentar ou diminuir uma coluna**, arraste a divisória do cabeçalho, como no Excel. **Duplo clique** na
+  divisória volta ao tamanho automático. Vale também para as tabelas de Tags, Gateway, Usuários e Histórico.
+
 ---
 
 ## 10. Histórico

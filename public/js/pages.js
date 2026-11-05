@@ -1,5 +1,5 @@
 // Páginas de configuração: Tags, Conexões (PLCs) e Alarmes.
-import { state, on, h, markDirty, uid, confirmBox, toast, writeTag, keypad, ackAlarm, can, canEdit, isProduction, LV, LEVEL_NAMES } from './state.js';
+import { state, on, h, markDirty, uid, confirmBox, toast, writeTag, keypad, ackAlarm, can, canEdit, isProduction, LV, LEVEL_NAMES, resizableTables, collapsible } from './state.js';
 
 // Abaixo de Engenharia as páginas de configuração ficam só para leitura.
 // Elementos com a classe "keep" (filtros, escrita de teste, reconhecer) continuam ativos.
@@ -139,6 +139,7 @@ export function renderTags() {
       tbody)),
     h('p', { class: 'hint' }, 'Tags novos ou alterados começam a ser lidos depois de clicar em "Salvar".'));
   readOnly(tagsRoot);
+  resizableTables(tagsRoot, 'tags');
 }
 
 async function testWrite(t) {
@@ -285,7 +286,7 @@ export function initAlarms(el) {
   on('alarms', renderAlarmLists);
 }
 
-let activeBody, histBody;
+let activeBody, histBody, activeCount;
 
 export function renderAlarms() {
   if (!state.project) return;
@@ -308,22 +309,32 @@ export function renderAlarms() {
   cfgBody.append(...p.alarms.map(row));
   readOnly(cfgBody);
 
+  const table = (key, cols, body) => h('div', { class: 'table-wrap' }, h('table', { class: 'grid', 'data-key': key }, h('thead', {}, h('tr', {}, cols.map((c) => h('th', {}, c)))), body));
+  activeCount = h('span', { class: 'sec-count' });
   alarmRoot.replaceChildren(
-    h('div', { class: 'head' }, h('h2', {}, 'Alarmes ativos'), h('span', { class: 'keep' }, h('button', { class: 'btn', onclick: () => ackAlarm('*') }, 'Reconhecer todos'))),
-    h('div', { class: 'table-wrap' }, h('table', { class: 'grid' }, h('thead', {}, h('tr', {}, ['Desde', 'Prioridade', 'Mensagem', 'Tag', 'Valor', 'Estado', ''].map((c) => h('th', {}, c)))), activeBody)),
-    h('div', { class: 'head' }, h('h2', { class: 'section-title' }, 'Configuração de alarmes'),
-      h('button', { class: 'btn primary eng-only', onclick: () => { p.alarms.push({ id: uid('al'), tag: p.tags[0]?.name || '', condition: '>', limit: 0, message: 'Novo alarme', priority: 'media' }); markDirty(); renderAlarms(); } }, '+ Novo alarme')),
-    h('div', { class: 'table-wrap' }, h('table', { class: 'grid' }, h('thead', {}, h('tr', {}, ['Tag', 'Condição', 'Limite', 'Mensagem', 'Prioridade', ''].map((c) => h('th', {}, c)))), cfgBody)),
-    h('div', { class: 'head' }, h('h2', { class: 'section-title' }, 'Últimos eventos'),
-      h('button', { class: 'btn small keep', onclick: () => document.querySelector('[data-page=history]').click() }, 'Ver histórico completo →')),
-    h('div', { class: 'table-wrap' }, h('table', { class: 'grid' }, h('thead', {}, h('tr', {}, ['Data/hora', 'Evento', 'Prioridade', 'Mensagem', 'Valor', 'Usuário'].map((c) => h('th', {}, c)))), histBody)));
+    collapsible('alarmes-ativos', h('span', {}, 'Alarmes ativos ', activeCount),
+      h('span', { class: 'keep' }, h('button', { class: 'btn', onclick: () => ackAlarm('*') }, 'Reconhecer todos')),
+      table('ativos', ['Desde', 'Prioridade', 'Mensagem', 'Tag', 'Valor', 'Estado', ''], activeBody)),
+    collapsible('alarmes-config', `Configuração de alarmes (${p.alarms.length})`,
+      h('button', { class: 'btn primary eng-only', onclick: () => { p.alarms.push({ id: uid('al'), tag: p.tags[0]?.name || '', condition: '>', limit: 0, message: 'Novo alarme', priority: 'media' }); markDirty(); renderAlarms(); } }, '+ Novo alarme'),
+      table('config', ['Tag', 'Condição', 'Limite', 'Mensagem', 'Prioridade', ''], cfgBody)),
+    collapsible('alarmes-eventos', 'Últimos eventos',
+      h('button', { class: 'btn small keep', onclick: () => document.querySelector('[data-page=history]').click() }, 'Ver histórico completo →'),
+      table('eventos', ['Data/hora', 'Evento', 'Prioridade', 'Mensagem', 'Valor', 'Usuário'], histBody)),
+    h('p', { class: 'hint' }, 'Clique no título para minimizar ou expandir · arraste a divisória do cabeçalho para mudar a largura da coluna (duplo clique volta ao automático).'));
   readOnly(alarmRoot);
+  resizableTables(alarmRoot, 'alarmes');
   renderAlarmLists();
 }
 
 function renderAlarmLists() {
   if (!activeBody) return;
   const { active = [], history = [] } = state.alarms;
+  if (activeCount) {
+    const un = active.filter((x) => !x.acked).length;
+    activeCount.textContent = active.length ? `(${active.length}${un ? `, ${un} sem reconhecer` : ''})` : '(nenhum)';
+    activeCount.className = 'sec-count' + (un ? ' prio-alta' : '');
+  }
   const dt = (t) => new Date(t).toLocaleString('pt-BR');
   activeBody.replaceChildren(...active.map((a) => h('tr', { class: a.acked ? '' : 'unacked' },
     h('td', {}, dt(a.since)), h('td', { class: 'prio-' + a.priority }, a.priority.toUpperCase()), h('td', {}, a.message), h('td', {}, a.tag),

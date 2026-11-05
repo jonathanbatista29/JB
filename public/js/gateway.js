@@ -1,5 +1,5 @@
 // Gateway: liga tags de conexões diferentes (ex.: multímetro -> PLC e PLC -> multímetro).
-import { state, on, h, markDirty, uid, confirmBox, can, canEdit, isProduction, LV, openModal, closeModal, toast } from './state.js';
+import { state, on, h, markDirty, uid, confirmBox, can, canEdit, isProduction, LV, openModal, closeModal, toast, resizableTables } from './state.js';
 
 let root, statusCells = new Map(), srcCells = new Map();
 
@@ -137,6 +137,7 @@ export function renderGateway() {
     root.querySelectorAll('input, select, button').forEach((el) => (el.disabled = true));
     root.querySelectorAll('.eng-only').forEach((el) => el.remove());
   }
+  resizableTables(root, 'gateway');
   updateStatus();
 }
 

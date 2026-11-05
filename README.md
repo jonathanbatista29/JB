@@ -24,6 +24,8 @@ em PC, tablet ou celular.
   - **Simulador** para testar sem PLC
 - **Tags** (variáveis): BOOL, INT, WORD, DINT, DWORD, REAL, STRING, com valor ao vivo e escrita de teste.
 - **Alarmes**: condições por tag, prioridade, faixa de alarme no rodapé, reconhecimento e histórico.
+  Objeto **Alarmes** para as telas (lista dos ativos ou indicador com a quantidade).
+- Tabelas com **colunas redimensionáveis** (arrastar a divisória, como no Excel) e seções que minimizam.
 - **Login com níveis de acesso** (Operador, Manutenção, Engenharia, Administrador), logout automático por
   inatividade, nível mínimo por objeto de tela e por tag, e registro de ações (quem fez o quê e quando).
 - **Histórico em banco de dados (SQLite)**: valores dos tags, eventos de alarme e registro de ações,
@@ -268,7 +270,7 @@ temporária (não mexem nos seus projetos) e simulam um PLC Modbus e um multíme
 - **Terminal:** `npm test`.
 - **GitHub:** a cada envio os testes rodam sozinhos no Linux e no Windows (aba *Actions* do repositório).
 
-O que é testado (38 testes):
+O que é testado:
 - Drivers: endereços e conversões Modbus (INT, DINT, REAL, bits, troca de words) e SCPI (respostas do DM858, sobrecarga, comandos).
 - Lógica: projeto e versões, gateway (ganho, pulso, "só quando"), troca de tela pelo PLC, alarmes, histórico, imagens, backup automático.
 - Banco de histórico: formato compacto, conversão do formato antigo, resumo por minuto, prazos, intervalo mínimo por tag, limite de tamanho, ocupação e compactação.
