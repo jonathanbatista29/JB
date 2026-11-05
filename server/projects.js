@@ -6,6 +6,7 @@ const { TagManager } = require('./tagManager');
 const { Historian } = require('./historian');
 const { Navigator } = require('./navigator');
 const { Gateway } = require('./gateway');
+const { Traceability } = require('./traceability');
 const { DatabaseSync } = require('node:sqlite');
 
 // Vários projetos (IHMs) no mesmo servidor. Cada um fica em data/projects/<endereço>/ e roda
@@ -34,17 +35,21 @@ class ProjectRuntime {
     this.nav = new Navigator(this.tm);
     this.nav.configure(this.project);
     this.gw = new Gateway(this.tm);
+    // Usuários logados nos painéis (operador em diante) entram no registro de rastreabilidade.
+    this.trace = new Traceability(this.tm, () => this.hist.db, () => [...this.clients].filter((c) => c.level >= 1).map((c) => c.who));
 
-    this.tm.on('values', (v) => { this.hist.onValues(v); this.nav.onValues(v); this.gw.onValues(v); this.broadcast({ type: 'values', values: v }); });
+    this.tm.on('values', (v) => { this.hist.onValues(v); this.nav.onValues(v); this.gw.onValues(v); this.trace.onValues(v); this.broadcast({ type: 'values', values: v }); });
     this.tm.on('status', (s) => { this.gw.onStatus(s); this.broadcast({ type: 'status', status: s }); });
     this.tm.on('alarms', () => this.broadcast({ type: 'alarms', ...this.tm.alarmState() }));
     this.tm.on('alarmEvent', (e) => this.hist.addAlarm(e));
     this.nav.on('navigate', (e) => this.broadcast({ type: 'navigate', ...e }));
     this.nav.on('warning', (m) => console.warn(`[${slug}] Troca de tela:`, m));
     this.gw.on('state', (bridges) => this.broadcast({ type: 'gateway', bridges }));
+    this.trace.on('state', (defs) => this.broadcast({ type: 'trace', defs }));
+    this.trace.on('record', (record) => this.broadcast({ type: 'traceRecord', record }));
 
     this.mode = loadMode(this.dir);
-    this.ready = this.tm.load(this.project).then(() => this.gw.configure(this.project));
+    this.ready = this.tm.load(this.project).then(() => { this.gw.configure(this.project); this.trace.configure(this.project); });
   }
 
   // Modo do projeto: "edit" (pode ser alterado) ou "production" (só operação, configuração travada).
@@ -63,6 +68,7 @@ class ProjectRuntime {
     this.nav.configure(this.project);
     await this.tm.load(this.project);
     this.gw.configure(this.project);
+    this.trace.configure(this.project);
     // Avisa os painéis abertos para recarregarem telas e configuração.
     this.broadcast({ type: 'projectSaved', ts: Date.now() });
     return this.project;
@@ -107,6 +113,7 @@ class ProjectRuntime {
   async stop() {
     for (const c of this.clients) c.close(4004, 'projeto parado');
     await this.tm.stopAll();
+    this.trace.stop();
     try { this.hist.close(); } catch {}
   }
 }

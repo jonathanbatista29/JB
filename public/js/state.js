@@ -8,6 +8,7 @@ export const state = {
   dirty: false,
   wsOnline: false,
   gateway: [],  // situação de cada ligação do gateway
+  trace: [],    // situação de cada registro de rastreabilidade
   mode: { mode: 'edit' }, // modo do projeto: 'edit' (edição) ou 'production' (produção)
   me: { user: null, level: -1, guestLevel: 0, idleMinutes: 10, levels: [] },
 };
@@ -138,6 +139,13 @@ export function connectWs() {
       case 'gateway':
         state.gateway = msg.bridges;
         emit('gateway', msg.bridges);
+        break;
+      case 'trace':
+        state.trace = msg.defs;
+        emit('trace', msg.defs);
+        break;
+      case 'traceRecord':
+        emit('traceRecord', msg.record);
         break;
       case 'mode':
         state.mode = { mode: msg.mode, since: msg.since, by: msg.by, startScreen: msg.startScreen };

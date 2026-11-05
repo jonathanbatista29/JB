@@ -5,6 +5,7 @@ const path = require('path');
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const DEMO = path.join(__dirname, 'demo-project.json');
 const { normalizeConfig: normalizeHistorian } = require('./historian');
+const { normalizeTrace } = require('./traceability');
 
 function normalize(p) {
   const out = typeof p === 'object' && p ? p : {};
@@ -46,6 +47,8 @@ function normalize(p) {
     value: b.value ?? '', resetSource: Boolean(b.resetSource),
     condTag: String(b.condTag || ''), condValue: b.condValue === '' || b.condValue == null ? '' : Number(b.condValue),
   }));
+  // Rastreabilidade: registros gravados quando o PLC liga um gatilho.
+  out.trace = normalizeTrace(out.trace || {});
   const nav = out.navigation && typeof out.navigation === 'object' ? out.navigation : {};
   out.navigation = { requestTag: String(nav.requestTag || ''), resetRequest: Boolean(nav.resetRequest), currentTag: String(nav.currentTag || '') };
   const names = new Set();

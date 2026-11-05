@@ -30,6 +30,8 @@ em PC, tablet ou celular.
   inatividade, nível mínimo por objeto de tela e por tag, e registro de ações (quem fez o quê e quando).
 - **Histórico em banco de dados (SQLite)**: valores dos tags, eventos de alarme e registro de ações,
   com gráfico por período, zoom, resumo (mín./média/máx.) e exportação CSV.
+- **Rastreabilidade**: grava uma linha por peça (código RFID, medidas, OK/NOK, operador) quando o PLC liga um
+  gatilho, com bit de confirmação (handshake), pesquisa por código/período/resultado e exportação para o Excel.
 - **Gateway**: copia valores entre equipamentos diferentes (ex.: multímetro ➜ PLC e PLC ➜ multímetro).
 - Leitura otimizada (agrupa endereços Modbus em blocos), reconexão automática.
 - Exportar/importar projeto em JSON.
@@ -277,6 +279,7 @@ O que é testado:
 - Lógica: projeto e versões, gateway (ganho, pulso, "só quando"), troca de tela pelo PLC, alarmes, histórico, imagens, backup automático.
 - Banco de histórico: formato compacto, conversão do formato antigo, resumo por minuto, prazos, intervalo mínimo por tag, limite de tamanho, ocupação e compactação.
 - Servidor: login e níveis, vários projetos e endereços, modo produção, backups com imagens, restaurar histórico, WebSocket, HTTPS.
+- Rastreabilidade: gravação pelo gatilho, confirmação ao PLC, nova tentativa sem leitura, pesquisa e CSV.
 - Equipamentos simulados: medida do multímetro chegando ao PLC, troca de função pelo PLC, reset por pulso, bit em registrador, sobrecarga e queda/reconexão.
 
 ## Estrutura
@@ -289,6 +292,7 @@ server/            servidor Node.js
   historian.js     histórico em banco SQLite
   navigator.js     troca de tela pelo PLC
   gateway.js       cópia de valores entre equipamentos
+  traceability.js  rastreabilidade (registro por peça)
   images.js        imagens das telas
   autobackup.js    backup automático diário
   https.js         HTTPS (certificado e servidor seguro)
@@ -300,6 +304,7 @@ public/            interface web (sem build)
   js/runtime.js    modo operação
   js/widgets.js    objetos de tela
   js/pages.js      Tags, PLCs e Alarmes
+  js/trace.js      Rastreabilidade (consulta e configuração)
   projects.html    lista de projetos (js/projects.js)
 test/              testes automáticos (npm test)
 data/
@@ -315,3 +320,4 @@ data/
 
 - Drivers Omron FINS, OPC UA
 - Receitas e relatórios
+- Rastreabilidade: objeto de tela com a última peça e cópia para SQL Server/MySQL

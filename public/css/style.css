@@ -357,3 +357,22 @@ table.grid.cols-fixed td, table.grid.cols-fixed th { overflow: hidden; overflow-
 .import-dialog h3 { margin: 0; }
 .import-dialog .bits-in { width: 90px; padding: 3px 6px; }
 .import-dialog .bits-in.bad { border-color: var(--err); background: #3a1512; }
+/* Rastreabilidade */
+#tabs .tab-sub{display:none}
+.trace-cards{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 10px}
+.trace-card{background:var(--panel2);border:1px solid var(--line);border-left:4px solid var(--ok,#2ecc71);border-radius:6px;padding:8px 12px;min-width:220px;display:flex;flex-direction:column;gap:3px}
+.trace-card.err{border-left-color:var(--err,#e74c3c)}
+.trace-card.off{opacity:.6;border-left-color:#666}
+.trace-filters{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:8px}
+.trace-filters .field{min-width:150px}
+.trace-btns{display:flex;gap:6px;flex-wrap:wrap}
+.trace-pager{display:flex;gap:8px;align-items:center;margin:4px 0}
+.trace-code{color:var(--accent,#2d8cff)}
+.trace-def{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:10px 0;background:var(--panel2)}
+.trace-def.off{opacity:.65}
+.trace-def-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.trace-def-head .trace-name{flex:1;min-width:180px;font-weight:600}
+.trace-status{font-size:.9em}
+.trace-grid{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.trace-fields{margin:4px 0 6px;max-width:640px}
+.trace-fields input{width:100%}
