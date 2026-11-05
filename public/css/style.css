@@ -303,3 +303,6 @@ body.mode-edit .rt-nav { box-shadow: inset 0 -3px 0 #d98c1f; }
 .img-lib-item { display: flex; flex-direction: column; gap: 3px; background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 6px; }
 .img-lib-item img { width: 100%; height: 90px; object-fit: contain; cursor: pointer; background: repeating-conic-gradient(#2a3340 0 25%, #1e2530 0 50%) 0 0 / 12px 12px; border-radius: 4px; }
 .img-lib-item small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+
+/* Texto de exemplo nos campos: mais apagado e em itálico, para não parecer valor digitado */
+input::placeholder, textarea::placeholder { color: #6b7a8f; opacity: .75; font-style: italic; }
