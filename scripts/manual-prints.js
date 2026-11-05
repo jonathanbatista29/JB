@@ -91,7 +91,7 @@ fs.mkdirSync(OUT, { recursive: true });
     await shot('17-plcs');
   });
   await step('gateway', async () => { await pg.goto(srv.url + '/estacao-1/'); await pg.waitForTimeout(1200); await pg.click('[data-page=gateway]'); await shot('18-gateway', { wait: 1500 }); });
-  await step('alarmes cfg', async () => { await pg.click('[data-page=alarms]'); await shot('19-alarmes-config', { wait: 600, s: { fullPage: false } }); });
+  await step('alarmes cfg', async () => { await pg.click('[data-page=alarmcfg]'); await shot('19-alarmes-config', { wait: 600, s: { fullPage: false } }); });
 
   // Histórico
   await step('historico', async () => { await pg.click('[data-page=history]'); await shot('20-historico', { wait: 1500 }); });

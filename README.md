@@ -24,6 +24,8 @@ em PC, tablet ou celular.
   - **Simulador** para testar sem PLC
 - **Tags** (variáveis): BOOL, INT, WORD, DINT, DWORD, REAL, STRING, com valor ao vivo e escrita de teste.
 - **Alarmes**: condições por tag, prioridade, faixa de alarme no rodapé, reconhecimento e histórico.
+  Objeto **Alarmes** para as telas (lista dos ativos ou indicador com a quantidade).
+- Tabelas com **colunas redimensionáveis** (arrastar a divisória, como no Excel) e seções que minimizam.
 - **Login com níveis de acesso** (Operador, Manutenção, Engenharia, Administrador), logout automático por
   inatividade, nível mínimo por objeto de tela e por tag, e registro de ações (quem fez o quê e quando).
 - **Histórico em banco de dados (SQLite)**: valores dos tags, eventos de alarme e registro de ações,
@@ -258,6 +260,8 @@ Com 7 dias completos e 1 ano de resumo por minuto ficam em torno de 4 GB (e meno
 **CompactLogix**: informe o IP e slot 0. Os tags são lidos pelo nome, sem mapeamento. A opção
 "Ler lista de tags ao conectar" é necessária para UDTs e STRING. Use timeout de 10 s (padrão): em programas
 com muitos tags a conexão inicial demora. **Testado em CompactLogix real** (bit e DINT, leitura e escrita).
+Com a lista de tags lida, o botão **⬇ Importar do PLC** (aba Tags) mostra os tags do controlador para escolher
+(inclui tags de programa, membros de UDT e STRING) e cria tags BOOL para bits de DINT/INT/SINT (ex.: `explorar.0`, `explorar.1`).
 
 ## Testes automáticos
 
@@ -268,7 +272,7 @@ temporária (não mexem nos seus projetos) e simulam um PLC Modbus e um multíme
 - **Terminal:** `npm test`.
 - **GitHub:** a cada envio os testes rodam sozinhos no Linux e no Windows (aba *Actions* do repositório).
 
-O que é testado (38 testes):
+O que é testado:
 - Drivers: endereços e conversões Modbus (INT, DINT, REAL, bits, troca de words) e SCPI (respostas do DM858, sobrecarga, comandos).
 - Lógica: projeto e versões, gateway (ganho, pulso, "só quando"), troca de tela pelo PLC, alarmes, histórico, imagens, backup automático.
 - Banco de histórico: formato compacto, conversão do formato antigo, resumo por minuto, prazos, intervalo mínimo por tag, limite de tamanho, ocupação e compactação.

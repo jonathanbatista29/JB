@@ -2,7 +2,7 @@
 import { state, on, h, api, loadMe, loadProject, saveProject, setProject, connectWs, reconnectWs, toast, can, canEdit, isProduction, openModal, closeModal, confirmBox, LV } from './state.js';
 import { initRuntime, show as showScreen, refreshRuntime, currentScreen } from './runtime.js';
 import { initEditor, refreshEditor } from './editor.js';
-import { initTags, initConnections, initAlarms, renderTags, renderConnections, renderAlarms } from './pages.js';
+import { initTags, initConnections, initAlarms, initAlarmConfig, renderTags, renderConnections, renderAlarms, renderAlarmConfig } from './pages.js';
 import { initUsers, renderUsers } from './users.js';
 import { initHistory, renderHistory } from './history.js';
 import { initGateway, renderGateway } from './gateway.js';
@@ -11,7 +11,7 @@ import { initSession, showLogin, renderUserButton, forceChangePassword } from '.
 const $ = (id) => document.getElementById(id);
 
 // Nível mínimo para ver cada aba.
-const PAGE_LEVEL = { runtime: LV.VIEW, alarms: LV.VIEW, history: LV.VIEW, tags: LV.MAINT, connections: LV.MAINT, gateway: LV.MAINT, editor: LV.ENG, users: LV.ADMIN };
+const PAGE_LEVEL = { runtime: LV.VIEW, alarms: LV.VIEW, alarmcfg: LV.MAINT, history: LV.VIEW, tags: LV.MAINT, connections: LV.MAINT, gateway: LV.MAINT, editor: LV.ENG, users: LV.ADMIN };
 let page = 'runtime';
 // Abas que somem em produção (a configuração fica travada).
 const EDIT_ONLY = new Set(['editor']);
@@ -28,6 +28,7 @@ function switchPage(p) {
   if (p === 'tags') renderTags();
   if (p === 'connections') renderConnections();
   if (p === 'alarms') renderAlarms();
+  if (p === 'alarmcfg') renderAlarmConfig();
   if (p === 'users') renderUsers();
   if (p === 'history') renderHistory();
   if (p === 'gateway') renderGateway();
@@ -213,6 +214,7 @@ async function main() {
   initTags($('page-tags'));
   initConnections($('page-connections'));
   initAlarms($('page-alarms'));
+  initAlarmConfig($('page-alarmcfg'));
   initUsers($('page-users'));
   initHistory($('page-history'));
   initGateway($('page-gateway'));

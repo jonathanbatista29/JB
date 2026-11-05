@@ -22,7 +22,12 @@ export const canEdit = () => can(LV.ENG) && !isProduction();
 
 export const bus = new EventTarget();
 export const emit = (name, detail) => bus.dispatchEvent(new CustomEvent(name, { detail }));
-export const on = (name, fn) => bus.addEventListener(name, (e) => fn(e.detail));
+// Assina um evento. Devolve uma função que cancela a assinatura.
+export const on = (name, fn) => {
+  const handler = (e) => fn(e.detail);
+  bus.addEventListener(name, handler);
+  return () => bus.removeEventListener(name, handler);
+};
 
 export function markDirty() {
   state.dirty = true;
@@ -282,4 +287,90 @@ export function keypad({ title, value, min, max, decimals }) {
         class: k === 'OK' ? 'ok' : k === 'ESC' ? 'cancel' : '', onclick: () => press(k),
       }, k === 'ESC' ? 'Sair' : k)))));
   });
+}
+
+// ---------- Tabelas com colunas redimensionáveis (como no Excel) ----------
+// Arraste a divisória do cabeçalho para mudar a largura; duplo clique volta ao automático.
+// A largura escolhida fica guardada neste navegador.
+const loadJSON = (k) => { try { return JSON.parse(localStorage.getItem(k) || '{}'); } catch { return {}; } };
+const saveJSON = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+
+export function resizableTable(table, key) {
+  const ths = [...table.querySelectorAll(':scope > thead > tr > th')];
+  if (!ths.length || table.dataset.resizable) return;
+  table.dataset.resizable = '1';
+  const store = 'jbihm.colw.' + key;
+  let widths = loadJSON(store);
+  const total = () => ths.reduce((s, th, i) => s + (widths[i] || th.offsetWidth), 0);
+  const apply = () => {
+    if (!Object.keys(widths).length) return;
+    // Congela as outras colunas na largura atual e aplica as escolhidas.
+    ths.forEach((th, i) => { th.style.width = (widths[i] || th.offsetWidth) + 'px'; });
+    table.classList.add('cols-fixed');
+    table.style.width = total() + 'px';
+  };
+  const reset = () => {
+    widths = {};
+    saveJSON(store, widths);
+    table.classList.remove('cols-fixed');
+    table.style.width = '';
+    ths.forEach((th) => { th.style.width = ''; });
+  };
+  ths.forEach((th, i) => {
+    const grip = h('span', { class: 'col-grip', title: 'Arraste para mudar a largura · duplo clique volta ao automático' });
+    grip.addEventListener('dblclick', (e) => { e.stopPropagation(); reset(); });
+    grip.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      ths.forEach((t, j) => { if (!widths[j]) widths[j] = t.offsetWidth; });
+      apply();
+      const x0 = e.clientX, w0 = widths[i];
+      grip.setPointerCapture?.(e.pointerId);
+      document.body.classList.add('col-resizing');
+      const move = (ev) => {
+        widths[i] = Math.max(36, Math.round(w0 + ev.clientX - x0));
+        th.style.width = widths[i] + 'px';
+        table.style.width = total() + 'px';
+      };
+      const up = () => {
+        grip.removeEventListener('pointermove', move);
+        grip.removeEventListener('pointerup', up);
+        grip.removeEventListener('pointercancel', up);
+        document.body.classList.remove('col-resizing');
+        saveJSON(store, widths);
+      };
+      grip.addEventListener('pointermove', move);
+      grip.addEventListener('pointerup', up);
+      grip.addEventListener('pointercancel', up);
+    });
+    th.append(grip);
+  });
+  // Aplica as larguras guardadas depois que a tabela aparecer na tela.
+  if (Object.keys(widths).length) requestAnimationFrame(apply);
+}
+
+// Liga o redimensionamento em todas as tabelas (.grid) de uma página.
+export function resizableTables(root, prefix) {
+  root.querySelectorAll('table.grid').forEach((t, i) => resizableTable(t, `${prefix}-${t.dataset.key || i}`));
+}
+
+// ---------- Seções que minimizam (▾ / ▸) ----------
+// A escolha (aberta ou minimizada) fica guardada neste navegador.
+export function collapsible(key, title, actions, body) {
+  const store = 'jbihm.sec';
+  const open = loadJSON(store)[key] !== false;
+  const arrow = h('span', { class: 'sec-arrow' }, open ? '▾' : '▸');
+  const box = h('div', { class: 'sec-body' + (open ? '' : ' hidden') }, body);
+  const toggle = () => {
+    const all = loadJSON(store);
+    const now = box.classList.toggle('hidden');
+    all[key] = !now;
+    saveJSON(store, all);
+    arrow.textContent = now ? '▸' : '▾';
+  };
+  return h('div', { class: 'section' },
+    h('div', { class: 'head' },
+      h('h2', { class: 'section-title sec-toggle', title: 'Clique para minimizar ou expandir', onclick: toggle }, arrow, ' ', title),
+      actions || ''),
+    box);
 }

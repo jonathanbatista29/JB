@@ -1,7 +1,7 @@
 // Biblioteca de objetos de tela (widgets).
 // Cada widget define: nome, ícone, tamanho padrão, propriedades editáveis e render().
 // render(w, rt) devolve o elemento; el._update() é chamado quando os valores mudam.
-import { state, h, api, toast, tagValue, tagQuality, findTag, writeTag, keypad, confirmBox, can, emit, tagWriteLevel, LV, LEVEL_NAMES } from './state.js';
+import { state, on, h, api, toast, tagValue, tagQuality, findTag, writeTag, keypad, confirmBox, can, emit, ackAlarm, tagWriteLevel, LV, LEVEL_NAMES } from './state.js';
 
 const num = (v, d = 0) => (Number.isFinite(Number(v)) && v !== '' && v != null ? Number(v) : d);
 const fmt = (v, dec) => {
@@ -345,6 +345,80 @@ export const WIDGETS = {
         img.style.display = url ? '' : 'none';
         empty.style.display = url ? 'none' : '';
       };
+      return el;
+    },
+  },
+
+  // Alarmes na tela: lista dos alarmes ativos ou indicador (contador).
+  alarms: {
+    name: 'Alarmes (lista / indicador)', icon: '🔔', size: [620, 180], group: 'Indicadores',
+    defaults: { mode: 'list', title: 'ALARMES ATIVOS', minPriority: 'baixa', showTime: true, showPriority: true, showTag: false, showValue: true,
+      showAck: true, maxRows: 0, fontSize: 14, okText: 'SEM ALARMES' },
+    props: [
+      { key: 'mode', label: 'Tipo', kind: 'select', full: true, options: [['list', 'Lista de alarmes ativos'], ['indicator', 'Indicador (quantidade de alarmes)']] },
+      { key: 'title', label: 'Título', kind: 'text', full: true },
+      { key: 'minPriority', label: 'Mostrar a partir da prioridade', kind: 'select', full: true, options: [['baixa', 'Todas'], ['media', 'Média e alta'], ['alta', 'Só alta']] },
+      { key: 'showTime', label: 'Coluna hora', kind: 'bool', showIf: (p) => p.mode !== 'indicator' },
+      { key: 'showPriority', label: 'Coluna prioridade', kind: 'bool', showIf: (p) => p.mode !== 'indicator' },
+      { key: 'showTag', label: 'Coluna tag', kind: 'bool', showIf: (p) => p.mode !== 'indicator' },
+      { key: 'showValue', label: 'Coluna valor', kind: 'bool', showIf: (p) => p.mode !== 'indicator' },
+      { key: 'showAck', label: 'Botão reconhecer', kind: 'bool', full: true },
+      { key: 'maxRows', label: 'Máx. de linhas (0 = todas)', kind: 'number', showIf: (p) => p.mode !== 'indicator' },
+      P.fontSize,
+      { key: 'okText', label: 'Texto sem alarmes', kind: 'text', full: true }],
+    render(w, rt) {
+      const p = w.props;
+      const RANK = { baixa: 1, media: 2, alta: 3 };
+      const el = h('div', { class: 'w-alarms ' + (p.mode === 'indicator' ? 'indicator' : 'list'), style: { fontSize: p.fontSize + 'px' } });
+      const dt = (t) => new Date(t).toLocaleTimeString('pt-BR');
+      // No editor sem alarmes ativos, mostra um exemplo para ver como fica.
+      const sample = [{ id: 'x1', since: Date.now() - 60000, priority: 'alta', message: 'Exemplo: temperatura alta', tag: 'Temperatura', value: 81.2, acked: false },
+        { id: 'x2', since: Date.now() - 300000, priority: 'media', message: 'Exemplo: nível alto', tag: 'Nivel', value: 92, acked: true }];
+      const list = () => {
+        const all = state.alarms?.active || [];
+        const src = !rt.runtime && !all.length ? sample : all;
+        return src.filter((a) => (RANK[a.priority] || 2) >= (RANK[p.minPriority] || 1))
+          .sort((a, b) => (Number(a.acked) - Number(b.acked)) || (RANK[b.priority] - RANK[a.priority]) || (b.since - a.since));
+      };
+      const ack = (id, e) => { e.stopPropagation(); if (rt.runtime) ackAlarm(id); };
+      function draw() {
+        const items = list();
+        const unacked = items.filter((a) => !a.acked).length;
+        if (p.mode === 'indicator') {
+          el.className = 'w-alarms indicator ' + (unacked ? 'alarm unacked' : items.length ? 'alarm' : 'ok');
+          el.replaceChildren(
+            h('div', { class: 'ind-title' }, p.title || 'ALARMES'),
+            h('div', { class: 'ind-count' }, items.length ? String(items.length) : '✓'),
+            h('div', { class: 'ind-sub' }, items.length ? (unacked ? `${unacked} sem reconhecer` : 'reconhecidos') : (p.okText || 'SEM ALARMES')),
+            p.showAck && unacked ? h('button', { class: 'ind-ack', onclick: (e) => ack('*', e) }, 'Reconhecer') : '');
+          return;
+        }
+        const max = Number(p.maxRows) || 0;
+        const shown = max ? items.slice(0, max) : items;
+        const cols = [p.showTime && 'Hora', p.showPriority && 'Prior.', 'Mensagem', p.showTag && 'Tag', p.showValue && 'Valor', p.showAck && ''].filter((c) => c !== false);
+        el.replaceChildren(
+          h('div', { class: 'al-head' }, h('span', {}, p.title || 'ALARMES'),
+            h('span', { class: 'al-count' + (unacked ? ' unacked' : '') }, items.length ? `${items.length}${unacked ? ` · ${unacked} sem reconhecer` : ''}` : ''),
+            p.showAck && unacked ? h('button', { class: 'al-ackall', onclick: (e) => ack('*', e) }, 'Reconhecer todos') : ''),
+          items.length
+            ? h('div', { class: 'al-body' }, h('table', {},
+              h('thead', {}, h('tr', {}, cols.map((c) => h('th', {}, c)))),
+              h('tbody', {}, shown.map((a) => h('tr', { class: `prio-row-${a.priority}${a.acked ? ' acked' : ''}${a.cleared ? ' cleared' : ''}` },
+                p.showTime ? h('td', { class: 'al-time' }, dt(a.since)) : '',
+                p.showPriority ? h('td', { class: 'al-prio' }, String(a.priority).toUpperCase()) : '',
+                h('td', { class: 'al-msg' }, a.message, a.cleared ? h('small', {}, ' (normalizado)') : ''),
+                p.showTag ? h('td', {}, a.tag) : '',
+                p.showValue ? h('td', { class: 'al-val' }, fmt(a.value, 1)) : '',
+                p.showAck ? h('td', {}, a.acked ? h('span', { class: 'al-ok' }, '✓') : h('button', { class: 'al-ack', onclick: (e) => ack(a.id, e) }, 'OK')) : '')))),
+              max && items.length > max ? h('div', { class: 'al-more' }, `+ ${items.length - max} alarme(s)`) : '')
+            : h('div', { class: 'al-empty' }, '✓ ', p.okText || 'SEM ALARMES'));
+      }
+      draw();
+      const off = on('alarms', draw);
+      // Indicador no modo operação: tocar abre a página de alarmes.
+      if (rt.runtime && p.mode === 'indicator') el.addEventListener('click', () => document.querySelector('[data-page=alarms]')?.click());
+      el._update = () => {};
+      el._destroy = off;
       return el;
     },
   },

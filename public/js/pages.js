@@ -1,5 +1,5 @@
 // Páginas de configuração: Tags, Conexões (PLCs) e Alarmes.
-import { state, on, h, markDirty, uid, confirmBox, toast, writeTag, keypad, ackAlarm, can, canEdit, isProduction, LV, LEVEL_NAMES } from './state.js';
+import { state, on, h, api, markDirty, uid, confirmBox, toast, writeTag, keypad, ackAlarm, can, canEdit, isProduction, LV, LEVEL_NAMES, resizableTables, collapsible, openModal, closeModal } from './state.js';
 
 // Abaixo de Engenharia as páginas de configuração ficam só para leitura.
 // Elementos com a classe "keep" (filtros, escrita de teste, reconhecer) continuam ativos.
@@ -129,7 +129,9 @@ export function renderTags() {
 
   renderRows();
   tagsRoot.replaceChildren(
-    h('div', { class: 'head' }, h('h2', {}, `Tags (${p.tags.length})`), filterIn, connSel, h('button', { class: 'btn primary eng-only', onclick: addTag }, '+ Novo tag')),
+    h('div', { class: 'head' }, h('h2', {}, `Tags (${p.tags.length})`), filterIn, connSel,
+      p.connections.some((c) => c.driver === 'logix') ? h('button', { class: 'btn eng-only', onclick: () => importFromPlc(), title: 'Escolher tags da lista do CompactLogix/ControlLogix' }, '⬇ Importar do PLC') : '',
+      h('button', { class: 'btn primary eng-only', onclick: addTag }, '+ Novo tag')),
     canEdit() ? '' : h('div', { class: 'note' }, isProduction()
       ? 'Projeto em produção: configuração travada. Volte para o modo edição para alterar os tags.'
       : 'Modo leitura: só Engenharia altera tags. Você pode ver os valores e escrever valores de teste (✎).'),
@@ -139,6 +141,137 @@ export function renderTags() {
       tbody)),
     h('p', { class: 'hint' }, 'Tags novos ou alterados começam a ser lidos depois de clicar em "Salvar".'));
   readOnly(tagsRoot);
+  resizableTables(tagsRoot, 'tags');
+}
+
+// ---------- Importar tags do PLC (CompactLogix / ControlLogix) ----------
+const TYPE_LABEL = Object.fromEntries(TYPES);
+// Bits que dá para endereçar dentro de um inteiro (ex.: explorar.0 ... explorar.31).
+const BIT_MAX = { SINT: 7, USINT: 7, INT: 15, UINT: 15, DINT: 31, UDINT: 31 };
+
+// "0-7, 10, 12-15" -> [0..7, 10, 12..15]; "*" ou "todos" -> todos os bits. Lança erro se inválido.
+export function parseBits(text, max) {
+  const t = String(text || '').trim().toLowerCase();
+  if (!t) return [];
+  if (t === '*' || t === 'todos' || t === 'tudo') return Array.from({ length: max + 1 }, (_, i) => i);
+  const out = new Set();
+  for (const part of t.split(/[,;\s]+/).filter(Boolean)) {
+    const m = part.match(/^(\d+)(?:-(\d+))?$/);
+    if (!m) throw new Error(`"${part}" não é um bit válido`);
+    const a = Number(m[1]), b = m[2] != null ? Number(m[2]) : a;
+    if (a > b || b > max) throw new Error(`Bits vão de 0 a ${max}`);
+    for (let i = a; i <= b; i++) out.add(i);
+  }
+  return [...out].sort((x, y) => x - y);
+}
+async function importFromPlc() {
+  const p = state.project;
+  const conns = p.connections.filter((c) => c.driver === 'logix');
+  const connSel = h('select', {}, conns.map((c) => h('option', { value: c.id, selected: c.id === tagConnFilter }, c.name)));
+  const search = h('input', { type: 'text', placeholder: 'Buscar (ex.: motor, teste_ihm, Program:)…' });
+  const onlyNew = h('input', { type: 'checkbox', checked: true });
+  const tbody = h('tbody');
+  const info = h('div', { class: 'hint' }, 'Carregando a lista de tags do PLC…');
+  const btnOk = h('button', { class: 'btn primary', disabled: true }, 'Criar tags');
+  const picked = new Map(); // endereço -> item (cria o tag do inteiro/real/etc.)
+  const bitSel = new Map(); // endereço -> { item, text, bits } (cria um BOOL para cada bit)
+  let list = [];
+  const existing = () => new Set(p.tags.filter((t) => t.connection === connSel.value).map((t) => String(t.address).toLowerCase()));
+  const nameFor = (addr) => {
+    let base = addr.replace(/^Program:[^.]+\./, '').replace(/\[(\d+)\]/g, '_$1').replace(/[^\w]+/g, '_').replace(/^_+|_+$/g, '') || 'Tag';
+    let n = base, i = 2;
+    while (p.tags.some((t) => t.name === n)) n = `${base}_${i++}`;
+    return n;
+  };
+  function draw() {
+    const q = search.value.trim().toLowerCase();
+    const have = existing();
+    const rows = list.filter((x) => (!q || x.address.toLowerCase().includes(q) || x.plcType.toLowerCase().includes(q)) && (!onlyNew.checked || !have.has(x.address.toLowerCase())));
+    const shown = rows.slice(0, 500);
+    tbody.replaceChildren(...shown.map((x) => {
+      const ok = Boolean(x.type);
+      const cb = h('input', { type: 'checkbox', checked: picked.has(x.address), disabled: !ok,
+        onchange: (e) => { e.target.checked ? picked.set(x.address, x) : picked.delete(x.address); upd(); } });
+      const max = BIT_MAX[x.plcType];
+      let bitsTd = h('td', {});
+      if (max != null) {
+        const inp = h('input', { type: 'text', class: 'bits-in', placeholder: `ex.: 0-${Math.min(7, max)}`, value: bitSel.get(x.address)?.text || '',
+          title: `Bits de 0 a ${max}. Exemplos: 0-7 · 0,1,5 · * (todos)` });
+        inp.addEventListener('input', () => {
+          try {
+            const bits = parseBits(inp.value, max);
+            inp.classList.remove('bad');
+            inp.title = bits.length ? `Cria ${bits.length} tag(s) BOOL: ${x.address}.${bits[0]}${bits.length > 1 ? ' … ' + x.address + '.' + bits.at(-1) : ''}` : `Bits de 0 a ${max}`;
+            bits.length ? bitSel.set(x.address, { item: x, text: inp.value, bits }) : bitSel.delete(x.address);
+          } catch (e) {
+            inp.classList.add('bad');
+            inp.title = e.message;
+            bitSel.delete(x.address);
+          }
+          upd();
+        });
+        bitsTd = h('td', {}, inp);
+      }
+      return h('tr', { class: ok ? '' : 'disabled-row', title: ok ? '' : 'Tipo não suportado pela IHM' },
+        h('td', {}, cb), h('td', {}, x.address), h('td', {}, x.plcType), h('td', {}, ok ? TYPE_LABEL[x.type] : '—'), bitsTd,
+        h('td', {}, have.has(x.address.toLowerCase()) ? '✔ já existe' : ''));
+    }));
+    info.textContent = `${list.length} tag(s) no PLC · ${rows.length} na busca${rows.length > shown.length ? ` (mostrando ${shown.length}; refine a busca)` : ''}`;
+    selAll.checked = shown.length > 0 && shown.filter((x) => x.type).every((x) => picked.has(x.address));
+    selAll.onchange = () => { for (const x of shown) if (x.type) selAll.checked ? picked.set(x.address, x) : picked.delete(x.address); draw(); upd(); };
+  }
+  const selAll = h('input', { type: 'checkbox', title: 'Marcar todos os mostrados' });
+  // Total a criar: tags marcados + um BOOL por bit (sem repetir os que já existem).
+  const toCreate = () => {
+    const have = existing();
+    const out = [];
+    for (const x of picked.values()) if (!have.has(x.address.toLowerCase())) out.push({ address: x.address, type: x.type, desc: x.program ? `${x.plcType} (programa ${x.program})` : x.plcType });
+    for (const { item, bits } of bitSel.values()) {
+      for (const b of bits) {
+        const address = `${item.address}.${b}`;
+        if (!have.has(address.toLowerCase())) out.push({ address, type: 'bool', desc: `bit ${b} de ${item.address} (${item.plcType})` });
+      }
+    }
+    return out;
+  };
+  const upd = () => { const n = toCreate().length; btnOk.disabled = !n; btnOk.textContent = n ? `Criar ${n} tag(s)` : 'Criar tags'; };
+  async function load() {
+    picked.clear(); bitSel.clear(); upd();
+    info.textContent = 'Carregando a lista de tags do PLC…';
+    tbody.replaceChildren();
+    try {
+      list = await api(`api/connections/${encodeURIComponent(connSel.value)}/browse`);
+      draw();
+    } catch (e) {
+      list = [];
+      info.replaceChildren(h('span', { class: 'err-txt' }, e.message));
+    }
+  }
+  search.addEventListener('input', draw);
+  onlyNew.addEventListener('change', draw);
+  connSel.addEventListener('change', load);
+  btnOk.addEventListener('click', () => {
+    const items = toCreate();
+    for (const x of items) {
+      p.tags.push({ name: nameFor(x.address), connection: connSel.value, address: x.address, type: x.type, access: 'RW', description: x.desc });
+    }
+    const n = items.length;
+    markDirty();
+    closeModal();
+    tagConnFilter = connSel.value;
+    renderTags();
+    toast(`${n} tag(s) criados. Confira "Acesso" (leitura/escrita) e clique em Salvar.`, 'ok');
+  });
+  openModal(h('div', { class: 'import-dialog' },
+    h('h3', {}, '⬇ Importar tags do PLC'),
+    h('p', { class: 'hint', style: { margin: 0 } }, 'Lista lida do CompactLogix/ControlLogix ao conectar (opção "Ler lista de tags do PLC ao conectar" ligada e conexão salva). Marque os tags e clique em Criar. Para usar bits de um DINT/INT/SINT como BOOL, digite os bits na coluna "Bits" (ex.: 0-7, 0,1,5 ou * para todos). Para arrays, troque o [0] pelo elemento desejado depois.'),
+    h('div', { class: 'prop-grid' }, h('label', { class: 'field' }, 'PLC', connSel), h('label', { class: 'field' }, 'Buscar', search)),
+    h('label', { class: 'check' }, onlyNew, 'Esconder os que já existem na IHM'),
+    info,
+    h('div', { class: 'table-wrap', style: { maxHeight: '50vh', overflow: 'auto' } }, h('table', { class: 'grid' },
+      h('thead', {}, h('tr', {}, h('th', {}, selAll), ...['Endereço no PLC', 'Tipo no PLC', 'Tipo na IHM', 'Bits (BOOL)', ''].map((c) => h('th', {}, c)))), tbody)),
+    h('div', { class: 'confirm-actions' }, h('button', { class: 'btn', onclick: closeModal }, 'Cancelar'), btnOk)));
+  load();
 }
 
 async function testWrite(t) {
@@ -197,12 +330,12 @@ export function renderConnections() {
     } }, vendors.map((v) => h('optgroup', { label: v }, state.models.filter((m) => m.vendor === v).map((m) => h('option', { value: m.id, selected: m.id === c.model }, m.name)))));
 
     const fields = [];
-    if (c.driver === 's7') fields.push(txtF('host', 'IP do PLC', '192.168.0.1'), numF('port', 'Porta', '102'), numF('rack', 'Rack', '0'), numF('slot', 'Slot', '1'), numF('timeout', 'Timeout (ms)', '3000'));
-    if (c.driver === 'scpi') fields.push(txtF('host', 'IP do instrumento', '192.168.1.50'), numF('port', 'Porta', '5025'), numF('timeout', 'Timeout (ms)', '3000'));
-    if (c.driver === 'logix') fields.push(txtF('host', 'IP do PLC', '192.168.1.10'), numF('slot', 'Slot da CPU', '0'), numF('timeout', 'Timeout (ms)', '10000'),
+    if (c.driver === 's7') fields.push(txtF('host', 'IP do PLC', 'ex.: 192.168.0.1'), numF('port', 'Porta', '102'), numF('rack', 'Rack', '0'), numF('slot', 'Slot', '1'), numF('timeout', 'Timeout (ms)', '3000'));
+    if (c.driver === 'scpi') fields.push(txtF('host', 'IP do instrumento', 'ex.: 192.168.1.50'), numF('port', 'Porta', '5025'), numF('timeout', 'Timeout (ms)', '3000'));
+    if (c.driver === 'logix') fields.push(txtF('host', 'IP do PLC', 'ex.: 192.168.1.10'), numF('slot', 'Slot da CPU', '0'), numF('timeout', 'Timeout (ms)', '10000'),
       h('label', { class: 'check full', title: 'Necessário para ler UDTs e STRING. Desmarque se o controlador não responder à conexão.' },
         h('input', { type: 'checkbox', checked: c.setup !== false, onchange: set('setup') }), 'Ler lista de tags do PLC ao conectar (UDT/STRING)'));
-    if (c.driver === 'modbus-tcp') fields.push(txtF('host', 'IP do PLC', '192.168.0.1'), numF('port', 'Porta', '502'), numF('unitId', 'Unit ID / Escravo', '1'), numF('timeout', 'Timeout (ms)', '2000'));
+    if (c.driver === 'modbus-tcp') fields.push(txtF('host', 'IP do PLC', 'ex.: 192.168.0.1'), numF('port', 'Porta', '502'), numF('unitId', 'Unit ID / Escravo', '1'), numF('timeout', 'Timeout (ms)', '2000'));
     if (c.driver === 'modbus-rtu') {
       fields.push(txtF('serialPort', 'Porta serial', '/dev/ttyUSB0 ou COM3'),
         h('label', { class: 'field' }, 'Baud rate', h('select', { onchange: set('baudRate', Number) }, [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200].map((b) => h('option', { value: b, selected: Number(c.baudRate) === b }, b)))),
@@ -276,7 +409,8 @@ function createDmmTags(c) {
 }
 
 // =================== ALARMES ===================
-let alarmRoot;
+// Duas abas: "Alarmes" (operação: ativos e últimos eventos) e "Config. Alarmes" (cadastro).
+let alarmRoot, alarmCfgRoot;
 
 export function initAlarms(el) {
   alarmRoot = el;
@@ -285,45 +419,72 @@ export function initAlarms(el) {
   on('alarms', renderAlarmLists);
 }
 
-let activeBody, histBody;
+export function initAlarmConfig(el) {
+  alarmCfgRoot = el;
+  el.classList.add('list-page');
+  on('project', () => { if (alarmCfgRoot.classList.contains('active')) renderAlarmConfig(); });
+}
+
+let activeBody, histBody, activeCount;
+const tableOf = (key, cols, body) => h('div', { class: 'table-wrap' }, h('table', { class: 'grid', 'data-key': key }, h('thead', {}, h('tr', {}, cols.map((c) => h('th', {}, c)))), body));
+const RESIZE_HINT = 'Clique no título para minimizar ou expandir · arraste a divisória do cabeçalho para mudar a largura da coluna (duplo clique volta ao automático).';
 
 export function renderAlarms() {
   if (!state.project) return;
-  const p = state.project;
   activeBody = h('tbody');
   histBody = h('tbody');
-  const cfgBody = h('tbody');
+  activeCount = h('span', { class: 'sec-count' });
+  alarmRoot.replaceChildren(
+    collapsible('alarmes-ativos', h('span', {}, 'Alarmes ativos ', activeCount),
+      h('span', { class: 'keep', style: { display: 'flex', gap: '6px' } },
+        h('button', { class: 'btn', onclick: () => ackAlarm('*') }, 'Reconhecer todos'),
+        can(LV.MAINT) ? h('button', { class: 'btn', onclick: () => document.querySelector('[data-page=alarmcfg]')?.click() }, '⚙ Configurar alarmes') : ''),
+      tableOf('ativos', ['Desde', 'Prioridade', 'Mensagem', 'Tag', 'Valor', 'Estado', ''], activeBody)),
+    collapsible('alarmes-eventos', 'Últimos eventos',
+      h('button', { class: 'btn small keep', onclick: () => document.querySelector('[data-page=history]').click() }, 'Ver histórico completo →'),
+      tableOf('eventos', ['Data/hora', 'Evento', 'Prioridade', 'Mensagem', 'Valor', 'Usuário'], histBody)),
+    h('p', { class: 'hint' }, RESIZE_HINT));
+  resizableTables(alarmRoot, 'alarmes');
+  renderAlarmLists();
+}
 
+export function renderAlarmConfig() {
+  if (!state.project || !alarmCfgRoot) return;
+  const p = state.project;
+  const cfgBody = h('tbody');
   const row = (a) => {
     const set = (k, conv = (x) => x) => (e) => { a[k] = conv(e.target.value); markDirty(); };
     return h('tr', {},
       h('td', {}, h('select', { onchange: set('tag') }, h('option', { value: '' }, '—'), p.tags.map((t) => h('option', { value: t.name, selected: t.name === a.tag }, t.name)))),
       h('td', {}, h('select', { onchange: set('condition') }, [['>', '>'], ['>=', '≥'], ['<', '<'], ['<=', '≤'], ['==', '='], ['!=', '≠'], ['true', 'Ligado (1)'], ['false', 'Desligado (0)']]
         .map(([v, t]) => h('option', { value: v, selected: v === a.condition }, t)))),
-      h('td', {}, h('input', { type: 'number', value: a.limit ?? '', style: { width: '90px' }, onchange: set('limit', Number) })),
+      h('td', {}, h('input', { type: 'number', value: a.limit ?? '', onchange: set('limit', Number) })),
       h('td', {}, h('input', { type: 'text', value: a.message, onchange: set('message') })),
       h('td', {}, h('select', { onchange: set('priority') }, [['alta', 'Alta'], ['media', 'Média'], ['baixa', 'Baixa']].map(([v, t]) => h('option', { value: v, selected: v === a.priority }, t)))),
-      h('td', {}, h('button', { class: 'btn small danger eng-only', onclick: () => { p.alarms = p.alarms.filter((x) => x !== a); markDirty(); renderAlarms(); } }, '✕')));
+      h('td', {}, h('button', { class: 'btn small danger eng-only', onclick: () => { p.alarms = p.alarms.filter((x) => x !== a); markDirty(); renderAlarmConfig(); } }, '✕')));
   };
   cfgBody.append(...p.alarms.map(row));
-  readOnly(cfgBody);
-
-  alarmRoot.replaceChildren(
-    h('div', { class: 'head' }, h('h2', {}, 'Alarmes ativos'), h('span', { class: 'keep' }, h('button', { class: 'btn', onclick: () => ackAlarm('*') }, 'Reconhecer todos'))),
-    h('div', { class: 'table-wrap' }, h('table', { class: 'grid' }, h('thead', {}, h('tr', {}, ['Desde', 'Prioridade', 'Mensagem', 'Tag', 'Valor', 'Estado', ''].map((c) => h('th', {}, c)))), activeBody)),
-    h('div', { class: 'head' }, h('h2', { class: 'section-title' }, 'Configuração de alarmes'),
-      h('button', { class: 'btn primary eng-only', onclick: () => { p.alarms.push({ id: uid('al'), tag: p.tags[0]?.name || '', condition: '>', limit: 0, message: 'Novo alarme', priority: 'media' }); markDirty(); renderAlarms(); } }, '+ Novo alarme')),
-    h('div', { class: 'table-wrap' }, h('table', { class: 'grid' }, h('thead', {}, h('tr', {}, ['Tag', 'Condição', 'Limite', 'Mensagem', 'Prioridade', ''].map((c) => h('th', {}, c)))), cfgBody)),
-    h('div', { class: 'head' }, h('h2', { class: 'section-title' }, 'Últimos eventos'),
-      h('button', { class: 'btn small keep', onclick: () => document.querySelector('[data-page=history]').click() }, 'Ver histórico completo →')),
-    h('div', { class: 'table-wrap' }, h('table', { class: 'grid' }, h('thead', {}, h('tr', {}, ['Data/hora', 'Evento', 'Prioridade', 'Mensagem', 'Valor', 'Usuário'].map((c) => h('th', {}, c)))), histBody)));
-  readOnly(alarmRoot);
-  renderAlarmLists();
+  if (!p.alarms.length) cfgBody.append(h('tr', {}, h('td', { colspan: 6, class: 'hint' }, 'Nenhum alarme. Clique em "+ Novo alarme".')));
+  alarmCfgRoot.replaceChildren(
+    h('div', { class: 'head' }, h('h2', {}, `Configuração de alarmes (${p.alarms.length})`),
+      h('button', { class: 'btn small keep', onclick: () => document.querySelector('[data-page=alarms]')?.click() }, '🔔 Ver alarmes'),
+      h('button', { class: 'btn primary eng-only', onclick: () => { p.alarms.push({ id: uid('al'), tag: p.tags[0]?.name || '', condition: '>', limit: 0, message: 'Novo alarme', priority: 'media' }); markDirty(); renderAlarmConfig(); } }, '+ Novo alarme')),
+    canEdit() ? '' : h('div', { class: 'note' }, isProduction() ? 'Projeto em produção: configuração travada. Volte para o modo edição para alterar os alarmes.' : 'Modo leitura: só Engenharia altera os alarmes.'),
+    h('p', { class: 'hint', style: { margin: 0 } }, 'Cada alarme vigia um tag: quando a condição é verdadeira, aparece em "Alarmes" e na faixa vermelha da operação. Clique em "Salvar" para aplicar.'),
+    tableOf('config', ['Tag', 'Condição', 'Limite', 'Mensagem', 'Prioridade', ''], cfgBody),
+    h('p', { class: 'hint' }, 'Arraste a divisória do cabeçalho para mudar a largura da coluna (duplo clique volta ao automático).'));
+  readOnly(alarmCfgRoot);
+  resizableTables(alarmCfgRoot, 'alarmes-cfg');
 }
 
 function renderAlarmLists() {
   if (!activeBody) return;
   const { active = [], history = [] } = state.alarms;
+  if (activeCount) {
+    const un = active.filter((x) => !x.acked).length;
+    activeCount.textContent = active.length ? `(${active.length}${un ? `, ${un} sem reconhecer` : ''})` : '(nenhum)';
+    activeCount.className = 'sec-count' + (un ? ' prio-alta' : '');
+  }
   const dt = (t) => new Date(t).toLocaleString('pt-BR');
   activeBody.replaceChildren(...active.map((a) => h('tr', { class: a.acked ? '' : 'unacked' },
     h('td', {}, dt(a.since)), h('td', { class: 'prio-' + a.priority }, a.priority.toUpperCase()), h('td', {}, a.message), h('td', {}, a.tag),

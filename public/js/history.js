@@ -1,5 +1,5 @@
 // Página de histórico: gráfico de tendências do banco de dados, histórico de alarmes e configuração.
-import { state, h, api, toast, markDirty, can, canEdit, findTag, confirmBox, LV } from './state.js';
+import { state, h, api, toast, markDirty, can, canEdit, findTag, confirmBox, LV, resizableTables } from './state.js';
 
 const COLORS = ['#2d8cff', '#f39c12', '#2ecc71', '#e74c3c', '#9b59b6', '#1abc9c', '#e67e22', '#ecf0f1'];
 const PERIODS = [['900000', 'Últimos 15 min'], ['3600000', 'Última 1 hora'], ['28800000', 'Últimas 8 horas'], ['86400000', 'Últimas 24 horas'],
@@ -38,6 +38,7 @@ export function renderHistory() {
   if (view === 'trend') renderTrend(body);
   else if (view === 'alarms') renderAlarmHist(body);
   else renderConfig(body);
+  resizableTables(body, 'historico-' + view);
 }
 
 // ---------- Tendências ----------

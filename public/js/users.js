@@ -1,5 +1,5 @@
 // Página de usuários (somente administrador): cadastro, configurações de acesso e registro de ações.
-import { state, h, api, toast, confirmBox, LV, LEVEL_NAMES } from './state.js';
+import { state, h, api, toast, confirmBox, LV, LEVEL_NAMES, resizableTables } from './state.js';
 
 let root;
 
@@ -81,6 +81,7 @@ export async function renderUsers() {
       h('thead', {}, h('tr', {}, ['Data/hora', 'Usuário', 'Ação', 'Detalhe'].map((c) => h('th', {}, c)))),
       h('tbody', {}, audit.map((e) => h('tr', {},
         h('td', { style: { whiteSpace: 'nowrap' } }, new Date(e.ts).toLocaleString('pt-BR')), h('td', {}, e.user), h('td', {}, e.action), h('td', {}, e.detail)))))));
+  resizableTables(root, 'usuarios');
 }
 
 async function resetPassword(u, run) {

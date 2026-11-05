@@ -89,6 +89,14 @@ class LogixDriver {
     return { values, errors };
   }
 
+  // Tags disponíveis no PLC (para importar na IHM).
+  browse() {
+    this.ensureOpen();
+    const list = this.plc.tagList || [];
+    if (!list.length) throw new Error('A lista de tags do PLC não foi lida. Ligue "Ler lista de tags do PLC ao conectar" e salve.');
+    return browseTagList(list, this.plc.templates || this.plc.state?.tagList?.templates || {});
+  }
+
   async write(tag, value) {
     this.ensureOpen();
     const t = this.tagObj(tag.address);
@@ -99,6 +107,48 @@ class LogixDriver {
       throw new Error(cipError(e));
     }
   }
+}
+
+// Tipo do PLC -> tipo do tag na IHM.
+const TYPE_MAP = { BOOL: 'bool', SINT: 'int16', INT: 'int16', USINT: 'uint16', UINT: 'uint16', DINT: 'int32', UDINT: 'uint32',
+  REAL: 'float32', LREAL: 'float32', STRING: 'string' };
+const MAX_BROWSE = 5000;
+
+// Lista os tags do PLC (lidos ao conectar com "Ler lista de tags"), abrindo os membros dos UDTs.
+// Cada item: { address, plcType, type (tipo IHM ou null se não suportado), program, array }.
+function browseTagList(tagList, templates) {
+  const out = [];
+  const add = (address, plcType, program, array) => {
+    if (out.length >= MAX_BROWSE) return;
+    out.push({ address, plcType, type: TYPE_MAP[plcType] || null, program: program || '', array: Boolean(array) });
+  };
+  const isString = (tpl) => tpl && /STRING/i.test(tpl._name || '') && tpl._members?.some((m) => m.name === 'LEN') && tpl._members?.some((m) => m.name === 'DATA');
+  const walk = (prefix, tpl, program, depth) => {
+    for (const m of tpl._members || []) {
+      if (out.length >= MAX_BROWSE) return;
+      if (!m.name || m.name.startsWith('ZZZZZZZZZZ') || m.name.startsWith('__') || m.type?.reserved) continue; // bits internos de BOOL
+      const addr = `${prefix}.${m.name}`;
+      const sub = m.type?.structure ? templates[m.type.code] : null;
+      if (sub && isString(sub)) add(addr, 'STRING', program, m.type.arrayDims);
+      else if (sub && depth < 3) walk(addr + (m.type.arrayDims ? '[0]' : ''), sub, program, depth + 1);
+      else if (!m.type?.structure) add(addr + (m.type.arrayDims ? '[0]' : ''), m.type?.string || '?', program, m.type?.arrayDims);
+    }
+  };
+  for (const t of tagList || []) {
+    if (out.length >= MAX_BROWSE) break;
+    if (!t?.name || t.type?.reserved || t.name.startsWith('__')) continue;
+    const base = (t.program ? `Program:${t.program}.` : '') + t.name;
+    const arr = t.type?.arrayDims > 0;
+    if (t.type?.structure) {
+      const tpl = templates?.[t.type.code];
+      if (tpl && isString(tpl)) add(base + (arr ? '[0]' : ''), 'STRING', t.program, arr);
+      else if (tpl) walk(base + (arr ? '[0]' : ''), tpl, t.program, 1);
+      else add(base, t.type.typeName || 'UDT', t.program, arr);
+    } else {
+      add(base + (arr ? '[0]' : ''), t.type?.typeName || '?', t.program, arr);
+    }
+  }
+  return out;
 }
 
 const CIP_STATUS = {
@@ -123,3 +173,4 @@ function normalize(v) {
 }
 
 module.exports = LogixDriver;
+module.exports.browseTagList = browseTagList;
