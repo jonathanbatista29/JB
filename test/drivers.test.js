@@ -91,3 +91,35 @@ test('Conversão de valores para o tipo do tag', () => {
   assert.equal(coerce(12, 'string'), '12');
   assert.throws(() => coerce('abc', 'int16'), /inválido/);
 });
+
+test('CompactLogix: lista de tags do PLC para importar (UDT, STRING, array e programa)', () => {
+  const { browseTagList } = require('../server/drivers/logix');
+  const T = (typeName, extra = {}) => ({ typeName, structure: false, arrayDims: 0, reserved: false, ...extra });
+  const tags = [
+    { name: 'teste_ihm', program: null, type: T('DINT') },
+    { name: 'Motor_Run', program: null, type: T('BOOL') },
+    { name: 'Receita', program: null, type: T('REAL', { arrayDims: 1 }) },
+    { name: 'Nivel', program: 'MainProgram', type: T('REAL') },
+    { name: 'TESTE_RFID', program: null, type: { typeName: 'UDT', code: 300, structure: true, arrayDims: 0, reserved: false } },
+    { name: 'Operador', program: null, type: { typeName: 'STRING', code: 400, structure: true, arrayDims: 0, reserved: false } },
+    { name: '__interno', program: null, type: T('DINT') },
+    { name: 'Map:Local', program: null, type: T('DINT', { reserved: true }) },
+  ];
+  const M = (name, string, extra = {}) => ({ name, type: { code: 0, string, structure: false, reserved: false, arrayDims: 0, ...extra } });
+  const templates = {
+    300: { _name: 'RFID_UDT', _members: [M('ZZZZZZZZZZRFID0', 'SINT'), M('Lido', 'BOOL'), M('Codigo', 'DINT'), M('Texto', '', { code: 400, structure: true })] },
+    400: { _name: 'STRING', _members: [M('LEN', 'DINT'), M('DATA', 'SINT', { arrayDims: 1 })] },
+  };
+  const list = browseTagList(tags, templates);
+  const by = Object.fromEntries(list.map((x) => [x.address, x]));
+  assert.equal(by.teste_ihm.type, 'int32');
+  assert.equal(by.Motor_Run.type, 'bool');
+  assert.equal(by['Receita[0]'].type, 'float32');
+  assert.equal(by['Receita[0]'].array, true);
+  assert.equal(by['Program:MainProgram.Nivel'].program, 'MainProgram');
+  assert.equal(by['TESTE_RFID.Lido'].type, 'bool');
+  assert.equal(by['TESTE_RFID.Codigo'].type, 'int32');
+  assert.equal(by['TESTE_RFID.Texto'].type, 'string');
+  assert.equal(by.Operador.type, 'string');
+  assert.ok(!Object.keys(by).some((a) => /ZZZZ|__interno|Map:/.test(a)), 'esconde bits internos, tags reservados e de sistema');
+});

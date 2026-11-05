@@ -247,6 +247,18 @@ Aba **🏷 Tags**. Cada tag é um endereço do PLC com nome.
 5. A coluna **Valor** mostra o valor ao vivo. O botão **✎** escreve um valor de teste.
 6. Clique em **💾 Salvar**.
 
+### Importar tags do CompactLogix / ControlLogix
+
+Em vez de digitar, escolha os tags na lista do próprio PLC:
+
+1. Na aba **PLCs**, deixe marcado **"Ler lista de tags do PLC ao conectar"** e confira que o PLC está **Online**.
+2. Na aba **Tags**, clique em **⬇ Importar do PLC**.
+3. Busque pelo nome (ex.: `teste_ihm`, `RFID`, `Program:`), marque os tags e clique em **Criar N tag(s)**.
+   Tags de programa, membros de UDT e STRING aparecem prontos; o tipo da IHM já vem certo (BOOL, INT, DINT, REAL, STRING).
+4. Confira a coluna **Acesso** (leitura/escrita) e clique em **💾 Salvar**.
+
+Para arrays, a lista mostra o elemento `[0]`: troque pelo elemento desejado depois. Tipos sem suporte (ex.: LINT) aparecem desabilitados.
+
 **Exemplos de endereço:**
 
 | Driver | Exemplos |
@@ -284,11 +296,14 @@ multímetro para uma memória do PLC, e o número da função do PLC para o mult
 
 ## 9. Alarmes
 
-Aba **🔔 Alarmes**.
+Os alarmes ficam em **duas abas**:
 
-![Alarmes](img/19-alarmes-config.png)
+- **🔔 Alarmes** (operação): alarmes ativos, botão Reconhecer e últimos eventos.
+- **⚙ Config. Alarmes** (Engenharia): o cadastro dos alarmes.
 
-1. Em **Configuração de alarmes**, clique em **+ Novo alarme**.
+![Configuração de alarmes](img/19-alarmes-config.png)
+
+1. Na aba **⚙ Config. Alarmes**, clique em **+ Novo alarme**.
 2. Escolha o **tag**, a **condição** (>, <, =, ligado…), o **limite**, a **mensagem** e a **prioridade**.
 3. Salve. Quando o alarme acontece, aparece a faixa vermelha na operação.
 4. **Reconhecer** confirma que o operador viu. O **histórico de eventos** guarda quem reconheceu e quando.
@@ -305,7 +320,7 @@ No Editor de Telas, arraste o objeto **🔔 Alarmes (lista / indicador)** para a
 
 ### Organizar a página de alarmes
 
-- Clique no título de cada parte (**Alarmes ativos**, **Configuração de alarmes**, **Últimos eventos**) para
+- Clique no título de cada parte (**Alarmes ativos**, **Últimos eventos**) para
   **minimizar ou expandir**. A escolha fica guardada.
 - Para **aumentar ou diminuir uma coluna**, arraste a divisória do cabeçalho, como no Excel. **Duplo clique** na
   divisória volta ao tamanho automático. Vale também para as tabelas de Tags, Gateway, Usuários e Histórico.

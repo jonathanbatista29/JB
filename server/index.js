@@ -312,6 +312,14 @@ proj.put('/project', need(LV.ENG), blockInProduction, wrap(async (req) => {
   auth.log(req.who, 'Salvou o projeto', `/${req.rt.slug}/: ${p.screens.length} tela(s), ${p.tags.length} tag(s)`);
 }));
 proj.get('/values', need(LV.VIEW), (req, res) => res.json(req.rt.tm.values));
+// Lista de tags do PLC (CompactLogix/ControlLogix) para importar.
+proj.get('/connections/:id/browse', need(LV.ENG), wrap((req) => {
+  const st = req.rt.tm.conns.get(req.params.id);
+  if (!st) throw new Error('Conexão desativada ou não salva');
+  if (typeof st.driver.browse !== 'function') throw new Error('Este tipo de PLC não informa a lista de tags');
+  if (!st.connected) throw new Error('PLC desconectado: verifique a comunicação na aba PLCs');
+  return st.driver.browse();
+}));
 proj.post('/write', need(LV.OPERATOR), wrap((req) => doWrite(req.rt, req.level, req.who, req.body.tag, req.body.value)));
 
 // Em produção a configuração do projeto fica travada (volte para o modo edição para alterar).

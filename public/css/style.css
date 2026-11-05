@@ -352,3 +352,6 @@ table.grid th { position: relative; }
 body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-select: none !important; }
 table.grid.cols-fixed { table-layout: fixed; }
 table.grid.cols-fixed td, table.grid.cols-fixed th { overflow: hidden; overflow-wrap: anywhere; }
+
+.import-dialog { width: 760px; max-width: 100%; display: flex; flex-direction: column; gap: 10px; }
+.import-dialog h3 { margin: 0; }

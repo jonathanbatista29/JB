@@ -260,6 +260,8 @@ Com 7 dias completos e 1 ano de resumo por minuto ficam em torno de 4 GB (e meno
 **CompactLogix**: informe o IP e slot 0. Os tags são lidos pelo nome, sem mapeamento. A opção
 "Ler lista de tags ao conectar" é necessária para UDTs e STRING. Use timeout de 10 s (padrão): em programas
 com muitos tags a conexão inicial demora. **Testado em CompactLogix real** (bit e DINT, leitura e escrita).
+Com a lista de tags lida, o botão **⬇ Importar do PLC** (aba Tags) mostra os tags do controlador para escolher
+(inclui tags de programa, membros de UDT e STRING).
 
 ## Testes automáticos
 
