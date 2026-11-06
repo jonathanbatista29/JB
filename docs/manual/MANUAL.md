@@ -173,6 +173,22 @@ Ir para outra tela · Voltar à tela anterior.
 
 ![Texto direto na tela](img/12-texto-na-tela.png)
 
+### Texto na vertical (90°)
+
+Nos objetos **Texto**, **Botão**, **Sinaleiro** e **Texto por estado**, use a propriedade **Rotação do texto**:
+
+| Opção | Como fica |
+|---|---|
+| Normal | horizontal |
+| 90° | lê de cima para baixo |
+| 270° | lê de baixo para cima |
+| 180° | de cabeça para baixo |
+
+Ao passar para 90° ou 270°, a IHM troca a largura e a altura do objeto para o texto caber. O duplo clique
+continua editando o texto (na horizontal, para ficar fácil de ler).
+
+![Texto na vertical](img/30-texto-vertical.png)
+
 **Atalhos:** Delete apaga · Ctrl+D duplica · Ctrl+C / Ctrl+V copia e cola · Ctrl+Z desfaz.
 
 ### Propriedades da tela

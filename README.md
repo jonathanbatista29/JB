@@ -12,6 +12,7 @@ em PC, tablet ou celular.
   Alças nos 4 cantos e no meio de cada lado redimensionam; segure **Shift** para manter a proporção.
   Duplo clique num botão, texto ou sinaleiro edita o texto direto na tela (Enter confirma, Shift+Enter nova linha,
   Esc cancela). Textos de botões podem ter várias linhas.
+  Texto, botão, sinaleiro e texto por estado podem ter o texto girado (90°, 270° ou 180°).
 - **Objetos de tela**: texto, painel, botão (pulso, liga/desliga, set, reset, valor fixo, navegação), chave,
   entrada numérica com teclado na tela, controle deslizante, sinaleiro, valor numérico com limites,
   texto por estado, barra gráfica, tanque, manômetro (gauge), motor/bomba/válvula/ventilador, gráfico de tendência.
