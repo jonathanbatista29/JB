@@ -16,7 +16,7 @@ em PC, tablet ou celular.
   Qualquer objeto pode ficar invisível conforme um tag (ligado, desligado, igual ou diferente de um valor).
 - **Objetos de tela**: texto, painel, botão (pulso, liga/desliga, set, reset, valor fixo, navegação), chave,
   entrada numérica com teclado na tela, controle deslizante, sinaleiro, valor numérico com limites,
-  texto por estado, barra gráfica, tanque, manômetro (gauge), motor/bomba/válvula/ventilador, gráfico de tendência.
+  texto por estado, barra gráfica (com faixa de aprovação OK/NOK), barra de tolerância (linha da medição percorrendo a escala), tanque, manômetro (gauge), motor/bomba/válvula/ventilador, gráfico de tendência.
 - **PLCs suportados**
   - Siemens **S7-1200, S7-1500, S7-300, S7-400** (protocolo S7, porta 102)
   - Allen-Bradley **CompactLogix / ControlLogix** (EtherNet/IP, acesso direto pelo nome do tag)

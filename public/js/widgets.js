@@ -13,6 +13,21 @@ const fmt = (v, dec) => {
 };
 const isOn = (v) => v === true || (typeof v === 'number' && v !== 0) || v === '1' || v === 'true';
 const pct = (v, min, max) => Math.max(0, Math.min(100, ((num(v) - min) / (max - min || 1)) * 100));
+// Faixa de aprovação: limites fixos ou lidos de tags (ex.: receita no PLC). Vazio = sem aquele limite.
+const okLimits = (p) => {
+  const get = (tag, fixed) => {
+    if (tag) { const v = tagValue(tag); return v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v); }
+    return fixed === '' || fixed == null || !Number.isFinite(Number(fixed)) ? null : Number(fixed);
+  };
+  return { lo: get(p.okMinTag, p.okMin), hi: get(p.okMaxTag, p.okMax) };
+};
+// 'ok' dentro da faixa, 'nok' fora, null sem faixa ou sem valor
+const okState = (v, lo, hi) => {
+  if (lo == null && hi == null) return null;
+  if (v == null || v === '' || !Number.isFinite(Number(v))) return null;
+  const n = Number(v);
+  return (lo == null || n >= lo) && (hi == null || n <= hi) ? 'ok' : 'nok';
+};
 const boolFor = (tag, on) => (findTag(tag)?.type === 'bool' ? on : on ? 1 : 0);
 
 // Nível mínimo para usar um objeto de comando. "Padrão": operador para comandos, todos para navegar.
@@ -48,6 +63,14 @@ const P = {
 
 // Biblioteca de botões de tela do projeto (cada um chama uma tela e pode ser usado em várias telas).
 export const navButton = (id) => (state.project?.navButtons || []).find((b) => b.id === id);
+// Faixa de aprovação (barras): dentro = cor OK, fora = cor NOK.
+const RANGE_PROPS = [
+  { key: 'okMin', label: 'Aprovação: mínimo', kind: 'number' }, { key: 'okMax', label: 'Aprovação: máximo', kind: 'number' },
+  { key: 'okMinTag', label: 'Mínimo vindo de um tag (opcional)', kind: 'tag', full: true },
+  { key: 'okMaxTag', label: 'Máximo vindo de um tag (opcional)', kind: 'tag', full: true },
+  { key: 'okColor', label: 'Cor dentro (OK)', kind: 'color' }, { key: 'nokColor', label: 'Cor fora (NOK)', kind: 'color' },
+];
+
 export const NAVBTN_DEFAULTS = { text: 'TELA', screen: '', bg: '#2d6cdf', color: '#ffffff', fontSize: 16, level: '' };
 
 export const WIDGETS = {
@@ -257,20 +280,101 @@ export const WIDGETS = {
 
   bar: {
     name: 'Barra gráfica', icon: '▮', size: [60, 200], group: 'Indicadores',
-    defaults: { tag: '', min: 0, max: 100, color: '#3498db', orientation: 'vertical', showValue: true, decimals: 0, unit: '' },
-    props: [P.tag, P.min, P.max, { key: 'color', label: 'Cor', kind: 'color' },
+    defaults: { tag: '', min: 0, max: 100, color: '#3498db', orientation: 'vertical', showValue: true, decimals: 0, unit: '',
+      okMin: '', okMax: '', okMinTag: '', okMaxTag: '', okColor: '#2ecc71', nokColor: '#e74c3c', showLimits: true },
+    props: [P.tag, P.min, P.max, { key: 'color', label: 'Cor (sem faixa de aprovação)', kind: 'color' },
       { key: 'orientation', label: 'Orientação', kind: 'select', options: [['vertical', 'Vertical'], ['horizontal', 'Horizontal']] },
-      P.decimals, P.unit, { key: 'showValue', label: 'Mostrar valor', kind: 'bool' }],
+      P.decimals, P.unit, { key: 'showValue', label: 'Mostrar valor', kind: 'bool' }, ...RANGE_PROPS,
+      { key: 'showLimits', label: 'Mostrar linhas dos limites de aprovação', kind: 'bool', full: true }],
     render(w) {
       const p = w.props;
+      const horiz = p.orientation === 'horizontal';
       const fill = h('div', { class: 'fill', style: { background: p.color } });
       const txt = h('div', { class: 'txt' });
-      const el = h('div', { class: 'w-bar' }, fill, p.showValue ? txt : null);
+      const loLine = h('div', { class: 'lim' }), hiLine = h('div', { class: 'lim' });
+      const el = h('div', { class: 'w-bar' + (horiz ? ' horiz' : '') }, fill, p.showLimits ? [loLine, hiLine] : null, p.showValue ? txt : null);
       el._update = () => {
-        const v = tagValue(p.tag), x = pct(v, num(p.min), num(p.max, 100)) + '%';
-        if (p.orientation === 'horizontal') Object.assign(fill.style, { width: x, height: '100%' });
+        const min = num(p.min), max = num(p.max, 100);
+        const v = tagValue(p.tag), x = pct(v, min, max) + '%';
+        if (horiz) Object.assign(fill.style, { width: x, height: '100%' });
         else Object.assign(fill.style, { height: x, width: '100%' });
         txt.textContent = fmt(v, p.decimals) + (p.unit ? ' ' + p.unit : '');
+        const { lo, hi } = okLimits(p);
+        const st = okState(v, lo, hi);
+        fill.style.background = st === 'ok' ? p.okColor : st === 'nok' ? p.nokColor : p.color;
+        for (const [line, lim] of [[loLine, lo], [hiLine, hi]]) {
+          line.style.display = lim == null ? 'none' : '';
+          if (lim != null) line.style[horiz ? 'left' : 'bottom'] = pct(lim, min, max) + '%';
+        }
+      };
+      return el;
+    },
+  },
+
+  tolbar: {
+    name: 'Barra de tolerância', icon: '⊢', size: [360, 110], group: 'Indicadores',
+    defaults: { tag: '', label: '', min: 0, max: 100, okMin: 40, okMax: 60, okMinTag: '', okMaxTag: '', okColor: '#2ecc71', nokColor: '#e74c3c',
+      orientation: 'horizontal', decimals: 1, unit: '', divisions: 5, fontSize: 22, showZones: true, markerColor: '#ffffff' },
+    props: [P.tag, { key: 'label', label: 'Rótulo (ex.: Tensão)', kind: 'text' }, P.unit, P.decimals,
+      { key: 'min', label: 'Início da escala', kind: 'number' }, { key: 'max', label: 'Fim da escala', kind: 'number' },
+      ...RANGE_PROPS,
+      { key: 'orientation', label: 'Orientação', kind: 'select', options: [['horizontal', 'Horizontal'], ['vertical', 'Vertical']] },
+      { key: 'divisions', label: 'Divisões da escala (0 = só limites)', kind: 'number' },
+      { key: 'fontSize', label: 'Fonte do valor (px)', kind: 'number' },
+      { key: 'markerColor', label: 'Cor da linha da medição', kind: 'color' },
+      { key: 'showZones', label: 'Pintar faixa de aprovação na barra', kind: 'bool', full: true }],
+    render(w) {
+      const p = w.props;
+      const horiz = p.orientation !== 'vertical';
+      const side = horiz ? 'left' : 'bottom', len = horiz ? 'width' : 'height';
+      const zone = h('div', { class: 'zone' });
+      const marker = h('div', { class: 'marker', style: { background: p.markerColor } });
+      const track = h('div', { class: 'track' }, zone, marker);
+      const scale = h('div', { class: 'scale' });
+      const val = h('div', { class: 'val', style: { fontSize: num(p.fontSize, 22) + 'px' } });
+      const st = h('div', { class: 'st' });
+      const head = h('div', { class: 'head' }, p.label ? h('span', { class: 'lbl' }, p.label) : null, val, st);
+      const el = h('div', { class: 'w-tol ' + (horiz ? 'horiz' : 'vert') }, head, h('div', { class: 'body' }, track, scale));
+      let lastKey = '';
+      const drawScale = (min, max, lo, hi) => {
+        const key = [min, max, lo, hi].join('|');
+        if (key === lastKey) return;
+        lastKey = key;
+        const marks = [];
+        const div = Math.max(0, Math.min(20, Math.round(num(p.divisions, 5))));
+        for (let i = 0; i <= div; i++) marks.push({ v: min + ((max - min) * i) / (div || 1), cls: '' });
+        if (!div) marks.splice(0, marks.length, { v: min, cls: '' }, { v: max, cls: '' });
+        // Limites muito próximos: o mínimo fica à esquerda (abaixo) do traço e o máximo à direita (acima).
+        const close = lo != null && hi != null && Math.abs(pct(hi, min, max) - pct(lo, min, max)) < 12;
+        if (lo != null) marks.push({ v: lo, cls: 'okm' + (close ? ' lo' : '') });
+        if (hi != null) marks.push({ v: hi, cls: 'okm' + (close ? ' hi' : '') });
+        // Valor de divisão muito perto de um limite: mostra só o limite (não encavala os números).
+        const near = (a, b) => Math.abs(a - b) < (max - min) * 0.06;
+        const shown = marks.filter((m) => m.cls || !marks.some((o) => o.cls && near(o.v, m.v)));
+        // Números nas pontas não saem da barra.
+        const edge = (x) => (x <= 3 ? ' first' : x >= 97 ? ' last' : '');
+        scale.replaceChildren(...shown.map((m) => h('span', { class: 'tick ' + m.cls + edge(pct(m.v, min, max)), style: { [side]: pct(m.v, min, max) + '%' } },
+          fmt(m.v, Number.isInteger(m.v) ? 0 : p.decimals))));
+      };
+      el._update = () => {
+        const min = num(p.min), max = num(p.max, 100);
+        const { lo, hi } = okLimits(p);
+        drawScale(min, max, lo, hi);
+        const a = lo == null ? 0 : pct(lo, min, max), b = hi == null ? 100 : pct(hi, min, max);
+        zone.style.display = p.showZones !== false && (lo != null || hi != null) ? '' : 'none';
+        Object.assign(zone.style, { [side]: a + '%', [len]: Math.max(0, b - a) + '%', background: p.okColor });
+        const v = tagValue(p.tag);
+        const ok = v == null || v === '' ? null : okState(v, lo, hi);
+        const color = ok === 'ok' ? p.okColor : ok === 'nok' ? p.nokColor : '#8796aa';
+        track.style.background = p.showZones !== false && (lo != null || hi != null) ? p.nokColor + '55' : '#0d1117';
+        marker.style.display = v == null || v === '' ? 'none' : '';
+        marker.style[side] = pct(v, min, max) + '%';
+        marker.style.boxShadow = `0 0 0 2px ${color}, 0 0 8px ${color}`;
+        marker.classList.toggle('out', num(v) < min || num(v) > max);
+        val.textContent = fmt(v, p.decimals) + (p.unit ? ' ' + p.unit : '');
+        val.style.color = color;
+        st.textContent = ok === 'ok' ? 'OK' : ok === 'nok' ? (num(v) < (lo ?? -Infinity) ? 'BAIXO' : num(v) > (hi ?? Infinity) ? 'ALTO' : 'NOK') : '';
+        st.style.background = ok ? color : 'transparent';
       };
       return el;
     },
