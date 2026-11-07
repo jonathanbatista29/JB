@@ -189,6 +189,24 @@ continua editando o texto (na horizontal, para ficar fácil de ler).
 
 ![Texto na vertical](img/30-texto-vertical.png)
 
+### Esconder um objeto conforme um tag (visibilidade)
+
+Qualquer objeto (texto, botão, sinaleiro, imagem, botão de tela…) pode sumir da tela de operação.
+Selecione o objeto e, em **Visibilidade**, escolha a **Regra**, o **Tag** e, se pedir, o **Valor**:
+
+| Regra | Exemplo de uso |
+|---|---|
+| Invisível quando o tag ligar | Esconder o botão "LIGAR" quando `Falha` = 1 |
+| Invisível quando o tag desligar | Mensagem que **só aparece** quando `Falha` = 1 |
+| Invisível quando for igual a… | Esconder em `Modo` = 2 (vários valores: `1, 3, 5`) |
+| Invisível quando for diferente de… | Objeto que **só aparece** em `Modo` = 1 |
+
+- Na operação o objeto some e não pode ser clicado.
+- No editor ele continua aparecendo, **apagado** quando a regra está escondendo, com um 👁 no canto.
+- Sem comunicação com o tag, o objeto continua visível.
+
+![Visibilidade](img/31-visibilidade.png)
+
 **Atalhos:** Delete apaga · Ctrl+D duplica · Ctrl+C / Ctrl+V copia e cola · Ctrl+Z desfaz.
 
 ### Propriedades da tela

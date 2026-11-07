@@ -378,3 +378,7 @@ table.grid.cols-fixed td, table.grid.cols-fixed th { overflow: hidden; overflow-
 .trace-grid{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
 .trace-fields{margin:4px 0 6px;max-width:640px}
 .trace-fields input{width:100%}
+/* Visibilidade por tag */
+.wgt.vis-hidden { display: none !important; }
+.wgt.vis-preview { opacity: .3; }
+.wgt.has-vis::after { content: '👁'; position: absolute; top: -9px; right: -9px; font-size: 11px; line-height: 16px; width: 16px; height: 16px; text-align: center; border-radius: 50%; background: #3a4658; pointer-events: none; z-index: 2; }

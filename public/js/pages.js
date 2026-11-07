@@ -56,6 +56,7 @@ export function renderTags() {
       const pr = w.props || {};
       if (pr.tag === oldName) pr.tag = newName;
       if (pr.faultTag === oldName) pr.faultTag = newName;
+      if (pr.hideTag === oldName) pr.hideTag = newName;
       if (pr.tags) pr.tags = pr.tags.split(',').map((t) => (t.trim() === oldName ? newName : t.trim())).join(', ');
     }
     for (const a of p.alarms) if (a.tag === oldName) a.tag = newName;

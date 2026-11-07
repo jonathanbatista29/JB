@@ -555,6 +555,31 @@ function escapeXml(s) {
   return String(s).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
 }
 
+// ---------- Visibilidade por tag ----------
+// Qualquer objeto pode sumir da tela conforme um tag (props.hideTag / hideMode / hideValue).
+// Sem comunicação (tag com qualidade ruim) o objeto continua visível.
+export const HIDE_MODES = [
+  ['', 'Sempre visível'],
+  ['on', 'Invisível quando o tag ligar (1 / ≠ 0)'],
+  ['off', 'Invisível quando o tag desligar (0) — só aparece ligado'],
+  ['eq', 'Invisível quando o tag for igual a…'],
+  ['neq', 'Invisível quando o tag for diferente de… — só aparece nesse valor'],
+];
+const sameVal = (v, list) => String(list ?? '').split(/[,;]/).map((x) => x.trim()).filter((x) => x !== '')
+  .some((x) => (Number.isFinite(Number(x)) && typeof v !== 'string' ? Number(x) === Number(typeof v === 'boolean' ? (v ? 1 : 0) : v) : x === String(v)));
+export function hiddenBy(p) {
+  if (!p?.hideTag || !p.hideMode) return false;
+  if (tagQuality(p.hideTag) !== 'good') return false;
+  const v = tagValue(p.hideTag);
+  switch (p.hideMode) {
+    case 'on': return isOn(v);
+    case 'off': return !isOn(v);
+    case 'eq': return sameVal(v, p.hideValue);
+    case 'neq': return !sameVal(v, p.hideValue);
+    default: return false;
+  }
+}
+
 // Texto girado: 90° e 270° usam escrita vertical (o texto ocupa a altura do objeto), 180° só vira.
 // No botão gira só o texto (.rot-target), para o efeito de apertar e a sombra continuarem certos.
 export const isVertical = (r) => String(r) === '90' || String(r) === '270';
@@ -576,7 +601,11 @@ export function renderWidget(w, rt) {
   applyRotation(inner.querySelector('.rot-target') || inner, w.props.rotate);
   const wrap = h('div', { class: 'inner' }, inner);
   box.append(wrap);
-  box._update = inner._update || (() => {});
+  const upd = inner._update || (() => {});
+  const vis = w.props.hideTag && w.props.hideMode;
+  // Na operação o objeto some; no editor fica apagado (para continuar dando para editar).
+  if (vis && !rt.runtime) { box.classList.add('has-vis'); box.title = 'Este objeto some na operação conforme o tag ' + w.props.hideTag; }
+  box._update = vis ? () => { upd(); box.classList.toggle(rt.runtime ? 'vis-hidden' : 'vis-preview', hiddenBy(w.props)); } : upd;
   box._destroy = inner._destroy || (() => {});
   box._update();
   if (rt.runtime && def.command) {

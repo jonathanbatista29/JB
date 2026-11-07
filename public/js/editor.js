@@ -1,6 +1,6 @@
 // Editor de telas: arrastar objetos, redimensionar, editar propriedades.
 import { state, on, h, markDirty, uid, confirmBox, toast } from './state.js';
-import { WIDGETS, renderWidget, newWidget, navButton, NAVBTN_DEFAULTS, isVertical } from './widgets.js';
+import { WIDGETS, renderWidget, newWidget, navButton, NAVBTN_DEFAULTS, isVertical, HIDE_MODES } from './widgets.js';
 import { loadImages, imagePicker, uploadFile, screenBackground, imgUrl } from './images.js';
 
 const GRID = 10;
@@ -549,6 +549,7 @@ function renderNavButtonProps(w) {
     h('div', { class: 'prop-grid' },
       field('Botão da biblioteca', refSel, true),
       geo('x', 'X'), geo('y', 'Y'), geo('w', 'Largura'), geo('h', 'Altura')),
+    h('div', { class: 'vis-fields' }, visFields(w)),
     h('h4', {}, 'Definição do botão'),
     h('div', { class: 'lib-note' }, `Usado ${uses} vez(es) no projeto. Mudanças aqui valem para todas as cópias.`),
     h('div', { class: 'prop-grid', style: { marginTop: '8px' } },
@@ -572,6 +573,32 @@ function renderNavButtonProps(w) {
         markDirty();
         renderAll();
       } }, 'Excluir da biblioteca')));
+}
+
+// Seção "Visibilidade": o objeto some na operação quando o tag liga, desliga ou tem um valor.
+function visFields(w) {
+  const p = w.props ||= {};
+  const set = (k, rerender) => (e) => {
+    pushUndo();
+    p[k] = e.target.value;
+    markDirty();
+    refreshBox(w);
+    if (rerender) renderProps();
+  };
+  const tags = state.project.tags;
+  const tagSel = h('select', { onchange: set('hideTag', true) }, h('option', { value: '' }, '— nenhum —'),
+    tags.map((t) => h('option', { value: t.name, selected: t.name === p.hideTag }, `${t.name}${t.description ? ' — ' + t.description : ''}`)));
+  if (p.hideTag && !tags.some((t) => t.name === p.hideTag)) tagSel.append(h('option', { value: p.hideTag, selected: true }, `${p.hideTag} (não existe!)`));
+  const modeSel = h('select', { onchange: set('hideMode', true) }, HIDE_MODES.map(([v, t]) => h('option', { value: v, selected: v === (p.hideMode || '') }, t)));
+  const needValue = p.hideMode === 'eq' || p.hideMode === 'neq';
+  return [
+    h('h4', {}, 'Visibilidade'),
+    h('div', { class: 'prop-grid' },
+      field('Regra', modeSel, true),
+      p.hideMode ? field('Tag', tagSel, true) : '',
+      p.hideMode && needValue ? field('Valor (vários: 1, 3, 5)', h('input', { type: 'text', value: p.hideValue ?? '', placeholder: 'ex.: 2', onchange: set('hideValue') }), true) : ''),
+    p.hideMode ? h('div', { class: 'lib-note' }, 'Na operação o objeto some (e não pode ser clicado). No editor ele fica apagado. Sem comunicação com o tag, continua visível.') : '',
+  ];
 }
 
 function renderProps() {
@@ -603,6 +630,7 @@ function renderProps() {
         pd.kind === 'bool'
           ? h('label', { class: 'check' + (pd.full ? ' full' : '') }, inputFor(pd, w.props, onChange, pushUndo), pd.label)
           : field(pd.label, inputFor(pd, w.props, onChange, pushUndo), pd.full || pd.kind === 'textarea'))),
+    h('div', { class: 'vis-fields' }, visFields(w)),
     h('div', { class: 'prop-actions' },
       textTarget(w) ? h('button', { class: 'btn small primary', onclick: () => startInlineEdit(w.id) }, '✎ Editar texto na tela') : '',
       h('button', { class: 'btn small', onclick: () => duplicate() }, 'Duplicar'),
