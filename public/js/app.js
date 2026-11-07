@@ -6,12 +6,13 @@ import { initTags, initConnections, initAlarms, initAlarmConfig, renderTags, ren
 import { initUsers, renderUsers } from './users.js';
 import { initHistory, renderHistory } from './history.js';
 import { initGateway, renderGateway } from './gateway.js';
+import { initTrace, initTraceConfig, renderTrace, renderTraceConfig } from './trace.js';
 import { initSession, showLogin, renderUserButton, forceChangePassword } from './session.js';
 
 const $ = (id) => document.getElementById(id);
 
 // Nível mínimo para ver cada aba.
-const PAGE_LEVEL = { runtime: LV.VIEW, alarms: LV.VIEW, alarmcfg: LV.MAINT, history: LV.VIEW, tags: LV.MAINT, connections: LV.MAINT, gateway: LV.MAINT, editor: LV.ENG, users: LV.ADMIN };
+const PAGE_LEVEL = { runtime: LV.VIEW, alarms: LV.VIEW, alarmcfg: LV.MAINT, history: LV.VIEW, tags: LV.MAINT, connections: LV.MAINT, gateway: LV.MAINT, trace: LV.VIEW, tracecfg: LV.MAINT, editor: LV.ENG, users: LV.ADMIN };
 let page = 'runtime';
 // Abas que somem em produção (a configuração fica travada).
 const EDIT_ONLY = new Set(['editor']);
@@ -32,6 +33,8 @@ function switchPage(p) {
   if (p === 'users') renderUsers();
   if (p === 'history') renderHistory();
   if (p === 'gateway') renderGateway();
+  if (p === 'trace') renderTrace();
+  if (p === 'tracecfg') renderTraceConfig();
 }
 
 function applyPermissions() {
@@ -218,6 +221,8 @@ async function main() {
   initUsers($('page-users'));
   initHistory($('page-history'));
   initGateway($('page-gateway'));
+  initTrace($('page-trace'));
+  initTraceConfig($('page-tracecfg'));
   initSession({ changed: sessionChanged });
 
   $('tabs').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) switchPage(b.dataset.page); });

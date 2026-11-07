@@ -40,6 +40,8 @@ const P = {
   unit: { key: 'unit', label: 'Unidade', kind: 'text' },
   decimals: { key: 'decimals', label: 'Casas decimais', kind: 'number' },
   blink: { key: 'blink', label: 'Piscar quando ligado', kind: 'bool', full: true },
+  rotate: { key: 'rotate', label: 'Rotação do texto', kind: 'select', full: true, options: [
+    ['0', 'Normal (horizontal)'], ['90', '90° — lê de cima para baixo'], ['270', '270° — lê de baixo para cima'], ['180', '180° — de cabeça para baixo']] },
   level: { key: 'level', label: 'Nível mínimo para usar', kind: 'select', full: true,
     options: [['', 'Padrão'], ['1', 'Operador'], ['2', 'Manutenção'], ['3', 'Engenharia'], ['4', 'Administrador']] },
 };
@@ -72,7 +74,7 @@ export const WIDGETS = {
     defaults: { text: 'Texto', fontSize: 18, color: '#ffffff', bg: 'transparent', bold: false, align: 'left' },
     props: [P.text, P.fontSize, P.color, P.bg,
       { key: 'align', label: 'Alinhamento', kind: 'select', options: [['left', 'Esquerda'], ['center', 'Centro'], ['right', 'Direita']] },
-      { key: 'bold', label: 'Negrito', kind: 'bool' }],
+      { key: 'bold', label: 'Negrito', kind: 'bool' }, P.rotate],
     render(w) {
       const p = w.props;
       return h('div', { class: 'w-label', style: { width: '100%', fontSize: p.fontSize + 'px', color: p.color, background: p.bg, fontWeight: p.bold ? 700 : 400,
@@ -99,11 +101,11 @@ export const WIDGETS = {
         ['value', 'Escrever valor fixo'], ['navigate', 'Ir para outra tela'], ['back', 'Voltar à tela anterior']] },
       P.tag, { key: 'value', label: 'Valor a escrever', kind: 'number', showIf: (p) => p.action === 'value' },
       { key: 'screen', label: 'Tela de destino', kind: 'screen', full: true, showIf: (p) => p.action === 'navigate' },
-      P.bg, P.color, P.fontSize, { key: 'confirm', label: 'Pedir confirmação', kind: 'bool' }, P.level],
+      P.bg, P.color, P.fontSize, P.rotate, { key: 'confirm', label: 'Pedir confirmação', kind: 'bool' }, P.level],
     command: true,
     render(w, rt) {
       const p = w.props;
-      const el = h('button', { class: 'w-button', style: { background: p.bg, color: p.color, fontSize: p.fontSize + 'px' } }, p.text);
+      const el = h('button', { class: 'w-button', style: { background: p.bg, color: p.color, fontSize: p.fontSize + 'px' } }, h('span', { class: 'btn-txt rot-target' }, p.text));
       el._update = () => {
         const showState = p.tag && ['toggle', 'set', 'reset', 'momentary'].includes(p.action);
         el.classList.toggle('on', Boolean(showState && isOn(tagValue(p.tag))));
@@ -197,7 +199,7 @@ export const WIDGETS = {
     name: 'Sinaleiro / Lâmpada', icon: '◉', size: [200, 44], group: 'Indicadores',
     defaults: { tag: '', text: 'Status', onColor: '#2ecc71', offColor: '#3b4554', color: '#ffffff', fontSize: 15, blink: false, invert: false },
     props: [P.tag, P.text, { key: 'onColor', label: 'Cor ligado', kind: 'color' }, { key: 'offColor', label: 'Cor desligado', kind: 'color' }, P.color, P.fontSize, P.blink,
-      { key: 'invert', label: 'Inverter lógica', kind: 'bool', full: true }],
+      { key: 'invert', label: 'Inverter lógica', kind: 'bool', full: true }, P.rotate],
     render(w) {
       const p = w.props;
       const bulb = h('div', { class: 'bulb' });
@@ -236,7 +238,7 @@ export const WIDGETS = {
   multistate: {
     name: 'Texto por estado', icon: '☰', size: [200, 40], group: 'Indicadores',
     defaults: { tag: '', states: '0=PARADO:#7f8c8d\n1=RODANDO:#2ecc71\n2=FALHA:#e74c3c', fontSize: 16 },
-    props: [P.tag, { key: 'states', label: 'Estados (valor=texto:cor, um por linha)', kind: 'textarea', full: true }, P.fontSize],
+    props: [P.tag, { key: 'states', label: 'Estados (valor=texto:cor, um por linha)', kind: 'textarea', full: true }, P.fontSize, P.rotate],
     render(w) {
       const p = w.props;
       const map = String(p.states || '').split('\n').map((l) => l.match(/^\s*([^=]+)=([^:]*)(?::(.*))?$/)).filter(Boolean)
@@ -553,6 +555,42 @@ function escapeXml(s) {
   return String(s).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
 }
 
+// ---------- Visibilidade por tag ----------
+// Qualquer objeto pode sumir da tela conforme um tag (props.hideTag / hideMode / hideValue).
+// Sem comunicação (tag com qualidade ruim) o objeto continua visível.
+export const HIDE_MODES = [
+  ['', 'Sempre visível'],
+  ['on', 'Invisível quando o tag ligar (1 / ≠ 0)'],
+  ['off', 'Invisível quando o tag desligar (0) — só aparece ligado'],
+  ['eq', 'Invisível quando o tag for igual a…'],
+  ['neq', 'Invisível quando o tag for diferente de… — só aparece nesse valor'],
+];
+const sameVal = (v, list) => String(list ?? '').split(/[,;]/).map((x) => x.trim()).filter((x) => x !== '')
+  .some((x) => (Number.isFinite(Number(x)) && typeof v !== 'string' ? Number(x) === Number(typeof v === 'boolean' ? (v ? 1 : 0) : v) : x === String(v)));
+export function hiddenBy(p) {
+  if (!p?.hideTag || !p.hideMode) return false;
+  if (tagQuality(p.hideTag) !== 'good') return false;
+  const v = tagValue(p.hideTag);
+  switch (p.hideMode) {
+    case 'on': return isOn(v);
+    case 'off': return !isOn(v);
+    case 'eq': return sameVal(v, p.hideValue);
+    case 'neq': return !sameVal(v, p.hideValue);
+    default: return false;
+  }
+}
+
+// Texto girado: 90° e 270° usam escrita vertical (o texto ocupa a altura do objeto), 180° só vira.
+// No botão gira só o texto (.rot-target), para o efeito de apertar e a sombra continuarem certos.
+export const isVertical = (r) => String(r) === '90' || String(r) === '270';
+function applyRotation(el, r) {
+  r = String(r || '0');
+  if (r === '0') return;
+  el.classList.add('rot-' + r);
+  if (isVertical(r)) el.style.writingMode = 'vertical-rl';
+  if (r === '180' || r === '270') el.style.transform = 'rotate(180deg)';
+}
+
 // Cria o elemento posicionado de um widget dentro da tela.
 export function renderWidget(w, rt) {
   const def = WIDGETS[w.type];
@@ -560,9 +598,14 @@ export function renderWidget(w, rt) {
   if (!def) { box.append(h('div', { class: 'inner' }, `? ${w.type}`)); return box; }
   w.props = { ...def.defaults, ...(w.props || {}) };
   const inner = def.render(w, rt);
+  applyRotation(inner.querySelector('.rot-target') || inner, w.props.rotate);
   const wrap = h('div', { class: 'inner' }, inner);
   box.append(wrap);
-  box._update = inner._update || (() => {});
+  const upd = inner._update || (() => {});
+  const vis = w.props.hideTag && w.props.hideMode;
+  // Na operação o objeto some; no editor fica apagado (para continuar dando para editar).
+  if (vis && !rt.runtime) { box.classList.add('has-vis'); box.title = 'Este objeto some na operação conforme o tag ' + w.props.hideTag; }
+  box._update = vis ? () => { upd(); box.classList.toggle(rt.runtime ? 'vis-hidden' : 'vis-preview', hiddenBy(w.props)); } : upd;
   box._destroy = inner._destroy || (() => {});
   box._update();
   if (rt.runtime && def.command) {

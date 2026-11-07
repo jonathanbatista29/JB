@@ -1,6 +1,6 @@
 // Editor de telas: arrastar objetos, redimensionar, editar propriedades.
 import { state, on, h, markDirty, uid, confirmBox, toast } from './state.js';
-import { WIDGETS, renderWidget, newWidget, navButton, NAVBTN_DEFAULTS } from './widgets.js';
+import { WIDGETS, renderWidget, newWidget, navButton, NAVBTN_DEFAULTS, isVertical, HIDE_MODES } from './widgets.js';
 import { loadImages, imagePicker, uploadFile, screenBackground, imgUrl } from './images.js';
 
 const GRID = 10;
@@ -430,11 +430,14 @@ function startInlineEdit(id) {
   closeInlineEdit(true);
   select(id);
   const align = w.type === 'label' ? w.props.align || 'left' : TEXT_TYPES[w.type];
+  // Texto vertical: edita na horizontal (mais fácil de ler), numa caixa com as medidas trocadas.
+  const vert = isVertical(w.props.rotate);
+  const [ew, eh] = vert ? [Math.max(w.h, 120), Math.max(w.w, 36)] : [Math.max(w.w, 80), Math.max(w.h, 36)];
   const ta = h('textarea', { class: 'inline-edit', spellcheck: 'false', style: {
-    left: w.x + 'px', top: w.y + 'px', width: Math.max(w.w, 80) + 'px', height: Math.max(w.h, 36) + 'px',
+    left: w.x + 'px', top: w.y + 'px', width: ew + 'px', height: eh + 'px',
     fontSize: (Number(t.obj.fontSize) || 16) + 'px', textAlign: align,
   } }, t.obj.text ?? '');
-  const hint = h('div', { class: 'inline-hint', style: { left: w.x + 'px', top: w.y + Math.max(w.h, 36) + 4 + 'px' } },
+  const hint = h('div', { class: 'inline-hint', style: { left: w.x + 'px', top: w.y + eh + 4 + 'px' } },
     'Enter confirma · Shift+Enter nova linha · Esc cancela');
   const done = (save) => {
     if (inlineEditor !== editor) return;
@@ -546,6 +549,7 @@ function renderNavButtonProps(w) {
     h('div', { class: 'prop-grid' },
       field('Botão da biblioteca', refSel, true),
       geo('x', 'X'), geo('y', 'Y'), geo('w', 'Largura'), geo('h', 'Altura')),
+    h('div', { class: 'vis-fields' }, visFields(w)),
     h('h4', {}, 'Definição do botão'),
     h('div', { class: 'lib-note' }, `Usado ${uses} vez(es) no projeto. Mudanças aqui valem para todas as cópias.`),
     h('div', { class: 'prop-grid', style: { marginTop: '8px' } },
@@ -571,12 +575,43 @@ function renderNavButtonProps(w) {
       } }, 'Excluir da biblioteca')));
 }
 
+// Seção "Visibilidade": o objeto some na operação quando o tag liga, desliga ou tem um valor.
+function visFields(w) {
+  const p = w.props ||= {};
+  const set = (k, rerender) => (e) => {
+    pushUndo();
+    p[k] = e.target.value;
+    markDirty();
+    refreshBox(w);
+    if (rerender) renderProps();
+  };
+  const tags = state.project.tags;
+  const tagSel = h('select', { onchange: set('hideTag', true) }, h('option', { value: '' }, '— nenhum —'),
+    tags.map((t) => h('option', { value: t.name, selected: t.name === p.hideTag }, `${t.name}${t.description ? ' — ' + t.description : ''}`)));
+  if (p.hideTag && !tags.some((t) => t.name === p.hideTag)) tagSel.append(h('option', { value: p.hideTag, selected: true }, `${p.hideTag} (não existe!)`));
+  const modeSel = h('select', { onchange: set('hideMode', true) }, HIDE_MODES.map(([v, t]) => h('option', { value: v, selected: v === (p.hideMode || '') }, t)));
+  const needValue = p.hideMode === 'eq' || p.hideMode === 'neq';
+  return [
+    h('h4', {}, 'Visibilidade'),
+    h('div', { class: 'prop-grid' },
+      field('Regra', modeSel, true),
+      p.hideMode ? field('Tag', tagSel, true) : '',
+      p.hideMode && needValue ? field('Valor (vários: 1, 3, 5)', h('input', { type: 'text', value: p.hideValue ?? '', placeholder: 'ex.: 2', onchange: set('hideValue') }), true) : ''),
+    p.hideMode ? h('div', { class: 'lib-note' }, 'Na operação o objeto some (e não pode ser clicado). No editor ele fica apagado. Sem comunicação com o tag, continua visível.') : '',
+  ];
+}
+
 function renderProps() {
   const w = selW();
   if (!w) return renderScreenProps();
   if (w.type === 'navbtn') return renderNavButtonProps(w);
   const def = WIDGETS[w.type];
   const onChange = (pd) => {
+    // Texto passou para vertical (ou voltou): troca largura e altura para o texto caber.
+    if (pd.key === 'rotate') {
+      const v = isVertical(w.props.rotate);
+      if ((v && w.w > w.h) || (!v && w.h > w.w)) [w.w, w.h] = [w.h, w.w];
+    }
     markDirty();
     refreshBox(w);
     if (pd.kind === 'select' || pd.kind === 'bool' || pd.kind === 'tag') renderProps();
@@ -595,6 +630,7 @@ function renderProps() {
         pd.kind === 'bool'
           ? h('label', { class: 'check' + (pd.full ? ' full' : '') }, inputFor(pd, w.props, onChange, pushUndo), pd.label)
           : field(pd.label, inputFor(pd, w.props, onChange, pushUndo), pd.full || pd.kind === 'textarea'))),
+    h('div', { class: 'vis-fields' }, visFields(w)),
     h('div', { class: 'prop-actions' },
       textTarget(w) ? h('button', { class: 'btn small primary', onclick: () => startInlineEdit(w.id) }, '✎ Editar texto na tela') : '',
       h('button', { class: 'btn small', onclick: () => duplicate() }, 'Duplicar'),

@@ -20,11 +20,12 @@ operação. Vários projetos (estações) rodam ao mesmo tempo no mesmo computad
 8. [Gateway e multímetro](#8-gateway-e-multímetro)
 9. [Alarmes](#9-alarmes)
 10. [Histórico](#10-histórico)
-11. [Usuários e níveis de acesso](#11-usuários-e-níveis-de-acesso)
-12. [Modo edição e modo produção](#12-modo-edição-e-modo-produção)
-13. [Backup e restauração](#13-backup-e-restauração)
-14. [HTTPS (acesso seguro)](#14-https-acesso-seguro)
-15. [Problemas comuns](#15-problemas-comuns)
+11. [Rastreabilidade (registro por peça)](#11-rastreabilidade-registro-por-peça)
+12. [Usuários e níveis de acesso](#12-usuários-e-níveis-de-acesso)
+13. [Modo edição e modo produção](#13-modo-edição-e-modo-produção)
+14. [Backup e restauração](#14-backup-e-restauração)
+15. [HTTPS (acesso seguro)](#15-https-acesso-seguro)
+16. [Problemas comuns](#16-problemas-comuns)
 
 ---
 
@@ -69,7 +70,7 @@ A janela preta mostra os endereços para abrir em outros aparelhos, por exemplo 
 
 ![Troca obrigatória de senha](img/03-trocar-senha.png)
 
-> 💡 Guarde a senha do administrador. Se esquecer, veja [Problemas comuns](#15-problemas-comuns).
+> 💡 Guarde a senha do administrador. Se esquecer, veja [Problemas comuns](#16-problemas-comuns).
 
 ---
 
@@ -86,9 +87,9 @@ Em cada cartão:
 |---|---|
 | **▶ Abrir** | Abre o projeto |
 | **Copiar endereço** | Copia o endereço para abrir no tablet ou em outro PC |
-| **▶ Produção / ✎ Editar** | Troca o modo do projeto (ver [capítulo 12](#12-modo-edição-e-modo-produção)) |
+| **▶ Produção / ✎ Editar** | Troca o modo do projeto (ver [capítulo 13](#13-modo-edição-e-modo-produção)) |
 | **Renomear / Duplicar** | Muda o nome ou faz uma cópia (ótimo para criar outra estação igual) |
-| **⬇ Backup / 🕘 Versões / ⬆ Restaurar** | Backups (ver [capítulo 13](#13-backup-e-restauração)) |
+| **⬇ Backup / 🕘 Versões / ⬆ Restaurar** | Backups (ver [capítulo 14](#14-backup-e-restauração)) |
 
 ### Criar um projeto novo
 
@@ -171,6 +172,40 @@ Ir para outra tela · Voltar à tela anterior.
 2. Digite ou cole (Ctrl+V). **Shift+Enter** pula linha, **Enter** confirma, **Esc** cancela.
 
 ![Texto direto na tela](img/12-texto-na-tela.png)
+
+### Texto na vertical (90°)
+
+Nos objetos **Texto**, **Botão**, **Sinaleiro** e **Texto por estado**, use a propriedade **Rotação do texto**:
+
+| Opção | Como fica |
+|---|---|
+| Normal | horizontal |
+| 90° | lê de cima para baixo |
+| 270° | lê de baixo para cima |
+| 180° | de cabeça para baixo |
+
+Ao passar para 90° ou 270°, a IHM troca a largura e a altura do objeto para o texto caber. O duplo clique
+continua editando o texto (na horizontal, para ficar fácil de ler).
+
+![Texto na vertical](img/30-texto-vertical.png)
+
+### Esconder um objeto conforme um tag (visibilidade)
+
+Qualquer objeto (texto, botão, sinaleiro, imagem, botão de tela…) pode sumir da tela de operação.
+Selecione o objeto e, em **Visibilidade**, escolha a **Regra**, o **Tag** e, se pedir, o **Valor**:
+
+| Regra | Exemplo de uso |
+|---|---|
+| Invisível quando o tag ligar | Esconder o botão "LIGAR" quando `Falha` = 1 |
+| Invisível quando o tag desligar | Mensagem que **só aparece** quando `Falha` = 1 |
+| Invisível quando for igual a… | Esconder em `Modo` = 2 (vários valores: `1, 3, 5`) |
+| Invisível quando for diferente de… | Objeto que **só aparece** em `Modo` = 1 |
+
+- Na operação o objeto some e não pode ser clicado.
+- No editor ele continua aparecendo, **apagado** quando a regra está escondendo, com um 👁 no canto.
+- Sem comunicação com o tag, o objeto continua visível.
+
+![Visibilidade](img/31-visibilidade.png)
 
 **Atalhos:** Delete apaga · Ctrl+D duplica · Ctrl+C / Ctrl+V copia e cola · Ctrl+Z desfaz.
 
@@ -364,7 +399,57 @@ Em **Configuração**:
 
 ---
 
-## 11. Usuários e níveis de acesso
+## 11. Rastreabilidade (registro por peça)
+
+A IHM grava uma linha no banco para cada peça: data/hora, código (ex.: RFID), os valores escolhidos
+(medidas, receita…), resultado OK/NOK e o operador logado. Depois dá para pesquisar pelo código e exportar
+para o Excel. O banco é criado pela própria IHM (dentro do histórico do projeto) e entra no backup.
+
+### Configurar
+
+Aba **🔎 Rastreabilidade** → **⚙ Configurar** → **+ Novo registro**.
+
+![Configurar rastreabilidade](img/28-rastreabilidade-config.png)
+
+| Campo | O que é | Exemplo |
+|---|---|---|
+| **1. Gatilho** | Bit que o PLC liga quando os dados da peça estão prontos | `TESTE_RFID.Lido` |
+| **Grava quando** | "o bit liga (0 → 1)" ou "o valor muda" (código novo, passo da máquina) | o bit liga |
+| **2. Código da peça** | Tag que identifica a peça | `TESTE_RFID.Codigo` |
+| **3. Dados** | Tags gravados junto. Dê um nome para a coluna (ex.: "Tensão (V)") | Tensão, Corrente |
+| **4. Resultado** | Tag de OK/NOK (opcional). "Valor que significa OK": vazio = ligado/diferente de 0 | `Resultado` = 1 |
+| **5. Confirmação** | Bit que a IHM liga depois de gravar | `TESTE_RFID.Gravado` |
+
+Clique em **💾 Salvar**. A situação de cada registro aparece ao lado do nome.
+
+### Handshake com o PLC (bit de confirmação)
+
+1. O PLC escreve o código e os dados e **liga o gatilho**.
+2. A IHM grava a linha e **liga a confirmação**.
+3. O PLC vê a confirmação, libera a peça e **desliga o gatilho**.
+4. A IHM **desliga a confirmação**. Pronto para a próxima peça.
+
+Se algum tag estiver sem leitura (ex.: multímetro desconectado) ou o código estiver vazio, a IHM **não grava
+e não confirma**, mostra o erro e tenta de novo a cada 2 s enquanto o gatilho estiver ligado. No PLC, use um
+temporizador: se a confirmação não vier em alguns segundos, mostre "falha ao gravar rastreabilidade".
+
+> 💡 Opção **"IHM desliga o gatilho depois de gravar"**: para PLCs que só ligam o bit e esperam ele voltar
+> a 0. Nesse caso (e no modo "o valor muda") a confirmação é um pulso de 1 s.
+
+### Pesquisar e exportar
+
+![Rastreabilidade](img/29-rastreabilidade.png)
+
+- No topo, um quadro por registro mostra a última peça gravada (ou o erro).
+- Filtre por **código** (basta parte dele), **período** e **resultado** (só OK / só NOK) e clique em **Pesquisar**.
+- Clique num **código** da lista para ver tudo daquela peça (ex.: reteste).
+- **⬇ Excel** baixa todas as linhas do filtro em CSV.
+- A lista mostra 100 por página e se atualiza sozinha quando chega uma peça nova.
+
+Por padrão os registros ficam para sempre. Para apagar os antigos, use **"Guardar os registros por (dias)"**
+na configuração.
+
+## 12. Usuários e níveis de acesso
 
 Aba **👥 Usuários** (só Administrador).
 
@@ -385,7 +470,7 @@ Aba **👥 Usuários** (só Administrador).
 
 ---
 
-## 12. Modo edição e modo produção
+## 13. Modo edição e modo produção
 
 Cada projeto tem um selo no topo: **✎ EDIÇÃO** (laranja) ou **● PRODUÇÃO** (verde).
 
@@ -400,7 +485,7 @@ Para alterar algo, clique em **✎ Editar** (a operação continua funcionando).
 
 ---
 
-## 13. Backup e restauração
+## 14. Backup e restauração
 
 Na **lista de projetos**:
 
@@ -426,7 +511,7 @@ Na **lista de projetos**:
 
 ---
 
-## 14. HTTPS (acesso seguro)
+## 15. HTTPS (acesso seguro)
 
 Recomendado para acesso fora da rede local (de preferência junto com uma VPN).
 
@@ -442,7 +527,7 @@ Recomendado para acesso fora da rede local (de preferência junto com uma VPN).
 
 ---
 
-## 15. Problemas comuns
+## 16. Problemas comuns
 
 | Problema | O que fazer |
 |---|---|

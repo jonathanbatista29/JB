@@ -370,6 +370,37 @@ proj.post('/history/compact', need(LV.ENG), wrap((req) => {
   return { ok: true, ...r };
 }));
 
+// Rastreabilidade: consulta e exportação dos registros
+const traceQuery = (req) => ({ def: req.query.def || '', code: String(req.query.code || '').slice(0, 100), from: req.query.from, to: req.query.to,
+  result: req.query.result, limit: req.query.limit, offset: req.query.offset });
+proj.get('/trace', need(LV.VIEW), wrap((req) => req.rt.trace.search(traceQuery(req))));
+proj.get('/trace/state', need(LV.VIEW), (req, res) => res.json(req.rt.trace.state()));
+proj.get('/trace.csv', need(LV.VIEW), wrap((req, res) => {
+  const q = traceQuery(req);
+  const defs = req.rt.trace.cfg.defs;
+  const one = defs.find((d) => d.id === q.def);
+  const rows = [...req.rt.trace.iterate(q)];
+  // Colunas de dados: as da configuração (na ordem) e depois qualquer outra que esteja gravada.
+  const cols = [], labels = new Map();
+  for (const d of one ? [one] : defs) for (const f of d.fields) if (!labels.has(f.tag)) { cols.push(f.tag); labels.set(f.tag, f.label || f.tag); }
+  for (const r of rows) for (const k of Object.keys(r.data)) if (!labels.has(k)) { cols.push(k); labels.set(k, k); }
+  const cell = (v) => {
+    if (v == null) return '';
+    if (typeof v === 'number') return String(v).replace('.', ',');
+    if (typeof v === 'boolean') return v ? '1' : '0';
+    const s = String(v);
+    return /[;"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const defName = new Map(defs.map((d) => [d.id, d.name || d.id]));
+  download(res, `rastreabilidade_${req.rt.slug}_${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv; charset=utf-8');
+  res.write('\ufeff' + ['data_hora', 'registro', 'codigo', 'resultado', 'operador', ...cols.map((c) => labels.get(c))].map(cell).join(';') + '\n');
+  for (const r of rows) {
+    res.write([csvDate(r.ts), defName.get(r.def) || r.def, r.code, r.result == null ? '' : r.result ? 'OK' : 'NOK', r.user, ...cols.map((c) => r.data[c])].map(cell).join(';') + '\n');
+  }
+  res.end();
+  auth.log(req.who, 'Exportou rastreabilidade', `/${req.rt.slug}/: ${rows.length} registro(s)${q.code ? ', código ' + q.code : ''}`);
+}));
+
 // Imagens do projeto (biblioteca usada pelas telas)
 proj.get('/images', need(LV.VIEW), (req, res) => {
   const used = images.usedBy(req.rt.project);
@@ -461,6 +492,7 @@ function onConnection(ws, req, rt) {
 
   ws.send(JSON.stringify({ type: 'snapshot', values: rt.tm.values, status: rt.tm.status, ...rt.tm.alarmState() }));
   ws.send(JSON.stringify({ type: 'gateway', bridges: rt.gw.state() }));
+  ws.send(JSON.stringify({ type: 'trace', defs: rt.trace.state() }));
   ws.send(JSON.stringify({ type: 'mode', ...rt.mode, startScreen: rt.project.startScreen }));
   ws.on('message', async (raw) => {
     let msg;
