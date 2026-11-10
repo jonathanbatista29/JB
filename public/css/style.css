@@ -382,3 +382,36 @@ table.grid.cols-fixed td, table.grid.cols-fixed th { overflow: hidden; overflow-
 .wgt.vis-hidden { display: none !important; }
 .wgt.vis-preview { opacity: .3; }
 .wgt.has-vis::after { content: '👁'; position: absolute; top: -9px; right: -9px; font-size: 11px; line-height: 16px; width: 16px; height: 16px; text-align: center; border-radius: 50%; background: #3a4658; pointer-events: none; z-index: 2; }
+/* Barra gráfica: linhas dos limites de aprovação */
+.w-bar .lim { position: absolute; left: 0; right: 0; height: 0; border-top: 2px dashed #fffc; pointer-events: none; }
+.w-bar.horiz .lim { top: 0; bottom: 0; width: 0; height: auto; border-top: none; border-left: 2px dashed #fffc; }
+/* Barra de tolerância: faixa OK, linha da medição e escala */
+.w-tol { width: 100%; height: 100%; display: flex; flex-direction: column; gap: 4px; background: #151b24; border: 1px solid #333f4f; border-radius: 6px; padding: 6px 10px 4px; box-sizing: border-box; overflow: hidden; }
+.w-tol .head { display: flex; align-items: baseline; gap: 10px; min-height: 0; }
+.w-tol .head .lbl { color: var(--muted); font-size: 13px; font-weight: 600; }
+.w-tol .head .val { font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+.w-tol .head .st { margin-left: auto; font-size: 12px; font-weight: 800; color: #fff; padding: 2px 8px; border-radius: 10px; }
+.w-tol .body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.w-tol .track { position: relative; flex: 1; min-height: 12px; border-radius: 4px; background: #0d1117; border: 1px solid #333f4f; }
+.w-tol .zone { position: absolute; top: 0; bottom: 0; opacity: .55; }
+.w-tol .marker { position: absolute; top: -4px; bottom: -4px; width: 3px; margin-left: -1.5px; border-radius: 2px; transition: left .25s, bottom .25s; z-index: 1; }
+.w-tol .marker.out { opacity: .5; }
+.w-tol .scale { position: relative; height: 16px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.w-tol .tick { position: absolute; top: 2px; transform: translateX(-50%); white-space: nowrap; }
+.w-tol .tick::before { content: ''; position: absolute; left: 50%; top: -5px; height: 4px; border-left: 1px solid #5a6a80; }
+.w-tol .tick.okm { color: #fff; font-weight: 700; z-index: 1; }
+.w-tol .head { flex-wrap: wrap; row-gap: 2px; }
+.w-tol.horiz .tick.first { transform: none; } .w-tol.horiz .tick.first::before { left: 0; }
+.w-tol.horiz .tick.last { transform: translateX(-100%); } .w-tol.horiz .tick.last::before { left: 100%; }
+.w-tol.horiz .tick.lo { transform: translateX(calc(-100% - 2px)); } .w-tol.horiz .tick.lo::before { left: calc(100% + 2px); }
+.w-tol.horiz .tick.hi { transform: translateX(2px); } .w-tol.horiz .tick.hi::before { left: -2px; }
+.w-tol.vert .tick.first { transform: none; } .w-tol.vert .tick.last { transform: translateY(100%); }
+.w-tol.vert .tick.lo { transform: translateY(calc(100% + 1px)); } .w-tol.vert .tick.hi { transform: translateY(-1px); }
+.w-tol.vert { flex-direction: column; }
+.w-tol.vert .body { flex-direction: row; }
+.w-tol.vert .track { flex: 0 0 26px; min-height: 0; }
+.w-tol.vert .zone { top: auto; left: 0; right: 0; }
+.w-tol.vert .marker { top: auto; left: -5px; right: -5px; width: auto; height: 3px; margin: 0 0 -1.5px 0; }
+.w-tol.vert .scale { flex: 1; height: auto; margin-left: 4px; }
+.w-tol.vert .tick { top: auto; left: 6px; transform: translateY(50%); }
+.w-tol.vert .tick::before { left: -6px; top: 50%; height: 0; width: 4px; border-left: none; border-top: 1px solid #5a6a80; }

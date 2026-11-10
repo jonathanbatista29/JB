@@ -207,6 +207,25 @@ Selecione o objeto e, em **Visibilidade**, escolha a **Regra**, o **Tag** e, se 
 
 ![Visibilidade](img/31-visibilidade.png)
 
+### Barras com faixa de aprovação (OK / NOK)
+
+**Barra de tolerância** (paleta Indicadores): mostra a medição em número e uma **linha que percorre a barra**.
+A faixa de aprovação fica pintada de verde; fora dela, vermelho. O valor e a etiqueta OK / BAIXO / ALTO mudam de cor.
+
+| Propriedade | Exemplo |
+|---|---|
+| Início / fim da escala | 0 a 15 V |
+| Aprovação: mínimo / máximo | 11,5 a 12,5 V |
+| Mínimo / máximo vindo de um tag | limites da receita no PLC (substituem os números fixos) |
+| Divisões da escala | 3 → mostra 0, 5, 10, 15 (os limites aparecem em destaque) |
+| Orientação | horizontal ou vertical |
+
+A **Barra gráfica** comum também ganhou a faixa de aprovação: a barra fica verde dentro dos limites e
+vermelha fora, com linhas tracejadas marcando o mínimo e o máximo. Sem limites, usa a cor normal.
+Deixe um dos limites vazio para aprovar só "acima de" ou só "abaixo de".
+
+![Barra de tolerância](img/32-barra-tolerancia.png)
+
 **Atalhos:** Delete apaga · Ctrl+D duplica · Ctrl+C / Ctrl+V copia e cola · Ctrl+Z desfaz.
 
 ### Propriedades da tela
