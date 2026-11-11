@@ -95,8 +95,12 @@ Cada projeto tem um modo, mostrado no topo (✎ EDIÇÃO / ● PRODUÇÃO):
   alterações pendentes são salvas, a edição de telas, tags, PLCs, gateway e alarmes fica **travada para todos**
   (o servidor também recusa salvar) e todos os painéis abertos vão para a tela inicial.
   Em produção, um painel aberto sempre começa na tela inicial.
-- **✎ Editar**: volta para o modo edição. A operação e a comunicação com os PLCs continuam; os painéis
-  mostram o selo "EDIÇÃO".
+- **Modo operação**: em produção os painéis mostram só a tela (sem a barra de cima e sem o menu de telas),
+  entram em tela cheia no primeiro toque e exigem login (sem usuário logado, fica pedindo o login).
+  O botão **☰** no canto abre telas, consultas (alarmes, rastreabilidade, histórico), trocar operador e sair.
+- **✎ Sair da operação**: só com usuário e senha de um **administrador**. A operação e a comunicação com os
+  PLCs continuam; os painéis mostram o selo "EDIÇÃO".
+- **`abrir_painel_operacao.bat`**: abre o Chrome/Edge em modo quiosque (sem barra do navegador) no endereço do projeto.
 - A tela inicial também pode ser marcada no Editor (propriedades da tela → "★ Tela inicial").
 - O modo pode ser trocado na lista de projetos e fica registrado no registro de ações.
 

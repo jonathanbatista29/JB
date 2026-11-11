@@ -132,7 +132,7 @@ root.post('/projects', need(LV.ENG), wrap((req) => {
   return { ok: true, slug: rt.slug };
 }));
 
-root.post('/projects/:slug/mode', need(LV.ENG), wrap((req) => setMode(rtOf(req.params.slug), req.body.mode, req.who)));
+root.post('/projects/:slug/mode', need(LV.ENG), wrap((req, res) => changeMode(req, res, rtOf(req.params.slug))));
 root.put('/projects/:slug/name', need(LV.ENG), wrap(async (req) => {
   const rt = rtOf(req.params.slug);
   const name = String(req.body.name || '').trim();
@@ -306,7 +306,9 @@ authRoutes(proj);
 
 proj.get('/project', need(LV.VIEW), (req, res) => res.json(req.rt.project));
 proj.get('/mode', need(LV.VIEW), (req, res) => res.json({ ...req.rt.mode, startScreen: req.rt.project.startScreen }));
-proj.post('/mode', need(LV.ENG), wrap((req) => setMode(req.rt, req.body.mode, req.who)));
+// Entrar em produção: Engenharia. Sair da produção: só Administrador (o painel em operação pede
+// usuário e senha de um administrador; o login dele substitui o do operador neste navegador).
+proj.post('/mode', wrap((req, res) => changeMode(req, res, req.rt)));
 proj.put('/project', need(LV.ENG), blockInProduction, wrap(async (req) => {
   const p = await req.rt.apply(req.body);
   auth.log(req.who, 'Salvou o projeto', `/${req.rt.slug}/: ${p.screens.length} tela(s), ${p.tags.length} tag(s)`);
@@ -329,6 +331,20 @@ function blockInProduction(req, res, next) {
     return res.status(409).json({ ok: false, error: 'Projeto em produção: volte para o modo edição para alterar' });
   }
   next();
+}
+
+function changeMode(req, res, rt) {
+  const mode = req.body?.mode;
+  let level = req.level, who = req.who;
+  if (mode === 'edit' && rt.mode.mode === 'production' && req.body.username) {
+    // Confere antes de abrir a sessão: um operador digitando a própria senha não perde o login.
+    const u = auth.login(req, res, String(req.body.username), String(req.body.password || ''), { minLevel: LV.ADMIN, levelError: 'Só um administrador pode tirar o projeto da operação' });
+    level = u.level;
+    who = u.username;
+  }
+  if (level < LV.ENG) throw new Error(req.sess ? 'Seu nível de acesso não permite esta ação' : 'Faça login para continuar');
+  if (mode === 'edit' && rt.mode.mode === 'production' && level < LV.ADMIN) throw new Error('Só um administrador pode tirar o projeto da operação');
+  return setMode(rt, mode, who);
 }
 
 function setMode(rt, mode, who) {

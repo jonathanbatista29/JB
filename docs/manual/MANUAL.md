@@ -500,7 +500,40 @@ Cada projeto tem um selo no topo: **✎ EDIÇÃO** (laranja) ou **● PRODUÇÃO
 ![Colocar em produção](img/23-producao-alerta.png)
 
 Em produção, a edição fica **travada para todos** e todos os painéis vão para a tela inicial.
-Para alterar algo, clique em **✎ Editar** (a operação continua funcionando).
+
+### Painel em modo operação
+
+Em produção, todos os painéis entram em **modo operação**:
+
+- Some a barra de cima (abas, salvar, usuário) e o menu de telas: aparece **só a tela da IHM**.
+  Troque de tela pelos botões de tela ou pelo PLC.
+- **Tela cheia**: o primeiro toque no painel já coloca em tela cheia.
+- **Sempre tem alguém logado**: sem login (ou depois do logout automático por inatividade), o painel
+  fica pedindo usuário e senha e não dá para fechar.
+
+![Login obrigatório na operação](img/34-operacao-login.png)
+
+O botão **☰** discreto no canto de cima abre o menu do painel:
+
+![Menu do painel](img/33-operacao-menu.png)
+
+| Botão | O que faz |
+|---|---|
+| Telas | Abre uma tela (as marcadas para aparecer no menu) |
+| 🔔 Alarmes · 🔎 Rastreabilidade · 📊 Histórico | Consultas (conforme o nível do usuário). **▶ Voltar à operação** volta para a tela |
+| ⛶ Tela cheia | Entra ou sai da tela cheia |
+| 🔄 Trocar operador | Sai o usuário atual e pede o login do próximo |
+| ✎ Sair da operação (admin) | Pede **usuário e senha de um administrador** e volta para o modo edição |
+
+> Só o **Administrador** tira o projeto da produção. Se outro usuário tentar, aparece "Só um administrador
+> pode tirar o projeto da operação" e o operador continua logado. Depois de sair, o painel fica logado como o administrador.
+
+### Abrir o painel sem barra do navegador (recomendado)
+
+Dê dois cliques em **`abrir_painel_operacao.bat`**: ele abre o Chrome (ou o Edge) em **modo quiosque**, sem
+barra de endereço, sem abas e sem o aviso de tela cheia. Antes, edite a linha `set URL=` com o endereço do
+projeto (ex.: `http://10.106.233.51:3000/carrossel-l1/`). Para fechar: **Alt+F4**.
+Para abrir sozinho quando o PC ligar: **Win+R** → `shell:startup` → coloque ali um atalho do arquivo.
 
 ---
 

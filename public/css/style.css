@@ -415,3 +415,17 @@ table.grid.cols-fixed td, table.grid.cols-fixed th { overflow: hidden; overflow-
 .w-tol.vert .scale { flex: 1; height: auto; margin-left: 4px; }
 .w-tol.vert .tick { top: auto; left: 6px; transform: translateY(50%); }
 .w-tol.vert .tick::before { left: -6px; top: 50%; height: 0; width: 4px; border-left: none; border-top: 1px solid #5a6a80; }
+/* Modo operação (projeto em produção): só a tela, sem barra de cima e sem menu de telas */
+.kiosk-btn, .kiosk-back { display: none; }
+body.kiosk .topbar, body.kiosk .rt-nav { display: none; }
+body.kiosk .kiosk-btn { display: flex; align-items: center; justify-content: center; position: fixed; top: 6px; right: 6px; z-index: 90; width: 34px; height: 34px;
+  border-radius: 8px; border: 1px solid #ffffff22; background: #00000055; color: #ffffffaa; font-size: 18px; cursor: pointer; opacity: .45; }
+body.kiosk .kiosk-btn:hover, body.kiosk .kiosk-btn:active { opacity: 1; }
+body.kiosk.kiosk-page .kiosk-back { display: block; position: fixed; right: 48px; top: 6px; z-index: 90; }
+body.kiosk.kiosk-page .page { top: 46px; }
+.kiosk-menu { min-width: min(420px, 90vw); }
+.kiosk-menu h4 { margin: 12px 0 6px; font-size: 11px; text-transform: uppercase; color: var(--muted); letter-spacing: .5px; }
+.kiosk-user { font-size: 15px; padding: 4px 0 2px; }
+.kiosk-user small { color: var(--muted); }
+.kiosk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.kiosk-grid .btn { padding: 10px; }
