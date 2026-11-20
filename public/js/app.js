@@ -1,13 +1,13 @@
 // Ponto de entrada: abas, permissões, salvar, importar/exportar.
-import { state, on, h, api, loadMe, loadProject, saveProject, setProject, connectWs, reconnectWs, toast, can, canEdit, isProduction, openModal, closeModal, confirmBox, LV } from './state.js';
-import { initRuntime, show as showScreen, refreshRuntime, currentScreen } from './runtime.js';
+import { state, on, h, api, loadMe, loadProject, saveProject, setProject, connectWs, reconnectWs, toast, can, canEdit, isProduction, openModal, closeModal, confirmBox, LV, LEVEL_NAMES, emit } from './state.js';
+import { initRuntime, show as showScreen, refreshRuntime, currentScreen, navigate as navScreen } from './runtime.js';
 import { initEditor, refreshEditor } from './editor.js';
 import { initTags, initConnections, initAlarms, initAlarmConfig, renderTags, renderConnections, renderAlarms, renderAlarmConfig } from './pages.js';
 import { initUsers, renderUsers } from './users.js';
 import { initHistory, renderHistory } from './history.js';
 import { initGateway, renderGateway } from './gateway.js';
 import { initTrace, initTraceConfig, renderTrace, renderTraceConfig } from './trace.js';
-import { initSession, showLogin, renderUserButton, forceChangePassword } from './session.js';
+import { initSession, showLogin, renderUserButton, forceChangePassword, logout } from './session.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -22,6 +22,7 @@ function switchPage(p) {
   if (!pageAllowed(p)) p = 'runtime';
   page = p;
   document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('active', b.dataset.page === p));
+  document.body.classList.toggle('kiosk-page', p !== 'runtime');
   document.querySelectorAll('.page').forEach((el) => el.classList.toggle('active', el.id === 'page-' + p));
   if (!state.project) return;
   if (p === 'runtime') refreshRuntime();
@@ -46,6 +47,8 @@ function applyPermissions() {
   $('dirtyFlag').classList.toggle('hidden', !edit || !state.dirty);
   document.body.classList.toggle('mode-production', isProduction());
   document.body.classList.toggle('mode-edit', !isProduction());
+  // Em produção o painel vira "modo operação": só a tela, sem a barra de cima, em tela cheia.
+  document.body.classList.toggle('kiosk', isProduction() && Boolean(state.project));
   renderModeBox();
   renderUserButton($('userBox'));
 }
@@ -111,9 +114,79 @@ function goProduction() {
     h('div', { class: 'confirm-actions' }, h('button', { class: 'btn', onclick: closeModal }, 'Cancelar'), btnOk)));
 }
 
-async function goEdit() {
-  if (!(await confirmBox('Voltar para o modo edição? A operação e a comunicação com os PLCs continuam, mas o projeto poderá ser alterado. Os painéis mostrarão o aviso "EDIÇÃO".'))) return;
-  try { await api('api/mode', { method: 'POST', body: { mode: 'edit' } }); } catch (e) { toast(e.message, 'err'); }
+// Sair da operação: sempre pede usuário e senha de um administrador (mesmo com outro usuário logado).
+function goEdit() {
+  const user = h('input', { type: 'text', autocomplete: 'username', placeholder: 'Usuário administrador', autocapitalize: 'none' });
+  const pass = h('input', { type: 'password', autocomplete: 'current-password', placeholder: 'Senha' });
+  const err = h('div', { class: 'form-err' });
+  const btn = h('button', { class: 'btn primary', type: 'submit' }, 'Sair da operação');
+  const form = h('form', { class: 'login-form', onsubmit: async (e) => {
+    e.preventDefault();
+    btn.disabled = true;
+    err.textContent = '';
+    try {
+      await api('api/mode', { method: 'POST', body: { mode: 'edit', username: user.value.trim(), password: pass.value } });
+      closeModal();
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+      emit('sessionChanged'); // o painel passa para o administrador
+    } catch (ex) {
+      err.textContent = ex.message;
+      pass.value = '';
+      pass.focus();
+    } finally {
+      btn.disabled = false;
+    }
+  } },
+    h('h3', {}, '✎ Sair da operação para edição'),
+    h('div', { class: 'note warn' }, 'Só um administrador pode tirar o projeto da operação. Todos os painéis voltam a mostrar o menu e o aviso "EDIÇÃO". A comunicação com os PLCs continua.'),
+    h('label', { class: 'field' }, 'Usuário', user),
+    h('label', { class: 'field' }, 'Senha', pass),
+    err,
+    h('div', { class: 'confirm-actions' }, h('button', { class: 'btn', type: 'button', onclick: closeModal }, 'Cancelar'), btn));
+  openModal(form);
+  setTimeout(() => user.focus(), 50);
+}
+
+// ---------- Modo operação (projeto em produção) ----------
+// Sem login não opera: o painel fica pedindo o login de um usuário.
+function requireOperator() {
+  if (!isProduction() || state.me.user || gateOpen || !state.project) return;
+  gateOpen = true;
+  showLogin({ gate: true, reason: 'Painel em operação: faça login para continuar.' }).finally(() => (gateOpen = false));
+}
+
+// Menu do canto (☰): telas, páginas permitidas, trocar operador e sair da operação.
+function kioskMenu() {
+  const u = state.me.user;
+  const go = (fn) => () => { closeModal(); fn(); };
+  const screens = state.project.screens.filter((s) => s.showInNav !== false);
+  const pages = [['alarms', '🔔 Alarmes'], ['trace', '🔎 Rastreabilidade'], ['history', '📊 Histórico']].filter(([p]) => pageAllowed(p));
+  const full = Boolean(document.fullscreenElement);
+  openModal(h('div', { class: 'kiosk-menu' },
+    h('div', { class: 'kiosk-user' }, u ? ['👤 ', h('b', {}, u.name), h('small', {}, ` · ${LEVEL_NAMES[u.level] || ''}`)] : 'Ninguém logado'),
+    screens.length > 1 ? [h('h4', {}, 'Telas'), h('div', { class: 'kiosk-grid' }, screens.map((s) =>
+      h('button', { class: 'btn' + (s.id === currentScreen() && page === 'runtime' ? ' primary' : ''), onclick: go(() => { switchPage('runtime'); navScreen(s.id); }) }, s.name)))] : '',
+    pages.length ? [h('h4', {}, 'Consultas'), h('div', { class: 'kiosk-grid' },
+      page !== 'runtime' ? h('button', { class: 'btn primary', onclick: go(() => switchPage('runtime')) }, '▶ Operação') : '',
+      pages.map(([p, t]) => h('button', { class: 'btn' + (p === page ? ' primary' : ''), onclick: go(() => switchPage(p)) }, t)))] : '',
+    h('h4', {}, 'Painel'),
+    h('div', { class: 'kiosk-grid' },
+      h('button', { class: 'btn', onclick: go(() => (full ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {})) }, full ? '🗗 Sair da tela cheia' : '⛶ Tela cheia'),
+      u ? h('button', { class: 'btn', onclick: go(() => logout()) }, '🔄 Trocar operador') : '',
+      h('button', { class: 'btn danger', onclick: go(goEdit) }, '✎ Sair da operação (admin)')),
+    h('div', { class: 'confirm-actions' }, h('button', { class: 'btn', onclick: closeModal }, 'Fechar'))));
+}
+
+function initKiosk() {
+  document.body.append(
+    h('button', { class: 'kiosk-btn', title: 'Menu do painel', onclick: (e) => { e.stopPropagation(); kioskMenu(); } }, '☰'),
+    h('button', { class: 'kiosk-back btn primary', onclick: () => switchPage('runtime') }, '▶ Voltar à operação'));
+  // Navegadores só deixam entrar em tela cheia depois de um toque: o primeiro toque no painel já entra.
+  document.addEventListener('pointerdown', () => {
+    if (document.body.classList.contains('kiosk') && !document.fullscreenElement && document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
+  }, true);
 }
 
 // O modo mudou (por este painel ou por outro): ajusta abas e, em produção, abre a tela inicial.
@@ -123,6 +196,7 @@ function onModeChanged(prev) {
     if (state.dirty) { toast('Projeto entrou em produção: alterações não salvas deste painel foram descartadas', 'err'); loadProject(); }
     switchPage('runtime');
     showScreen(startScreenId());
+    requireOperator();
     toast(`Projeto em produção — tela inicial: ${state.project.screens.find((s) => s.id === startScreenId())?.name}`, 'ok');
   } else if (!isProduction() && prev === 'production') {
     toast('Projeto voltou para o modo edição');
@@ -209,6 +283,7 @@ async function sessionChanged() {
   applyPermissions();
   reconnectWs();
   switchPage(page);
+  requireOperator();
 }
 
 async function main() {
@@ -224,6 +299,7 @@ async function main() {
   initTrace($('page-trace'));
   initTraceConfig($('page-tracecfg'));
   initSession({ changed: sessionChanged });
+  initKiosk();
 
   $('tabs').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) switchPage(b.dataset.page); });
   $('btnSave').addEventListener('click', save);

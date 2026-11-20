@@ -74,6 +74,28 @@ test('Modo produção trava a configuração e define a tela inicial', async () 
   assert.equal((await admin.put('/estacao-1/api/project', p)).status, 200);
 });
 
+test('Sair da produção só com administrador (painel do operador pede a senha do admin)', async () => {
+  assert.equal((await admin.post('/api/users', { username: 'eng', name: 'Engenheiro', level: 3, password: '1234' })).status, 200);
+  const eng = new Client(srv.url);
+  await eng.post('/api/login', { username: 'eng', password: '1234' });
+  await eng.post('/api/me/password', { oldPassword: '1234', newPassword: 'eng#1' });
+  await eng.post('/api/login', { username: 'eng', password: 'eng#1' });
+  assert.equal((await eng.post('/estacao-1/api/mode', { mode: 'production' })).body.mode, 'production', 'engenharia coloca em produção');
+  const r = await eng.post('/estacao-1/api/mode', { mode: 'edit' });
+  assert.equal(r.status, 400);
+  assert.match(r.body.error, /administrador/);
+  // Operador logado no painel: senha errada e usuário sem nível não tiram da produção nem derrubam o login dele.
+  const op = new Client(srv.url);
+  await op.post('/api/login', { username: 'oper', password: '4321' });
+  assert.match((await op.post('/estacao-1/api/mode', { mode: 'edit', username: 'admin', password: 'errada' })).body.error, /incorretos/);
+  assert.match((await op.post('/estacao-1/api/mode', { mode: 'edit', username: 'eng', password: 'eng#1' })).body.error, /administrador/);
+  assert.equal((await op.get('/estacao-1/api/me')).body.user.username, 'oper', 'operador continua logado');
+  assert.equal((await op.get('/estacao-1/api/mode')).body.mode, 'production');
+  const ok = await op.post('/estacao-1/api/mode', { mode: 'edit', username: 'admin', password: 'Teste#123' });
+  assert.equal(ok.body.mode, 'edit');
+  assert.equal((await op.get('/estacao-1/api/me')).body.user.username, 'admin', 'painel passa para o administrador');
+});
+
 test('Backup do projeto leva as imagens; importar e restaurar versão', async () => {
   const up = await admin.post('/estacao-1/api/images', { name: 'Logo.png', data: PNG });
   assert.equal(up.body.file, 'logo.png');

@@ -111,7 +111,8 @@ function levelOf(sess) {
   return sess ? sess.user.level : Number(db.settings.guestLevel);
 }
 
-function login(req, res, username, password) {
+// Confere usuário e senha (com bloqueio após 5 erros) sem abrir sessão.
+function checkLogin(req, username, password) {
   const ip = req.socket.remoteAddress;
   const f = failures.get(ip);
   if (f && f.until > Date.now()) {
@@ -126,6 +127,16 @@ function login(req, res, username, password) {
     throw new Error('Usuário ou senha incorretos');
   }
   failures.delete(ip);
+  return user;
+}
+
+function login(req, res, username, password, { minLevel = null, levelError = 'Este usuário não tem o nível necessário' } = {}) {
+  const user = checkLogin(req, username, password);
+  if (minLevel != null && user.level < minLevel) {
+    log(user.username, 'Login recusado (nível insuficiente)', req.socket.remoteAddress);
+    throw new Error(levelError);
+  }
+  const ip = req.socket.remoteAddress;
   const token = crypto.randomBytes(32).toString('hex');
   sessions.set(token, { username: user.username, last: Date.now() });
   setCookie(req, res, token, SESSION_TTL / 1000);
