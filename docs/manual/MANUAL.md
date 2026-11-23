@@ -585,13 +585,14 @@ Recomendado para acesso fora da rede local (de preferência junto com uma VPN).
 |---|---|
 | **Esqueci a senha do admin** | Feche o `iniciar_ihm.bat`, apague o arquivo `data\users.json` e abra de novo: volta `admin`/`admin`. Os outros usuários são perdidos; projetos e histórico não. |
 | **Outros PCs/tablets não abrem a IHM** | Libere o Node.js no Firewall do Windows (Redes privadas). Use o IP mostrado na janela preta, com `:3000`. |
-| **"A porta 3000 já está em uso"** | Outro programa usa a porta. Edite `iniciar_ihm.bat` e troque `set PORT=3000` por outra (ex.: 3001). |
+| **"A porta 3000 já está em uso"** (ou `EADDRINUSE`) | Quase sempre é o **servidor antigo da IHM ainda aberto** (outra janela preta, ou ao atualizar para uma pasta nova). O `iniciar_ihm.bat` avisa e pergunta se pode fechar o antigo: responda **S**. Sem o .bat: Gerenciador de Tarefas (Ctrl+Shift+Esc) → Detalhes → **node.exe** → Finalizar tarefa. Se for outro programa, troque `set PORT=3000` por outra porta (ex.: 3001). |
+| **Atualizei para uma pasta nova e os projetos sumiram** | Os projetos ficam na pasta **`data`** da IHM. Feche o servidor e copie a pasta `data` da instalação antiga para a nova. |
 | **CompactLogix dá "Tempo esgotado" ou "PLC desconectado"** | Aumente o **Timeout** para 10000 ms no cartão do PLC (padrão desta versão). Se ainda falhar, desmarque "Ler lista de tags do PLC ao conectar". |
 | **PLC Siemens não conecta** | Confira IP, rack/slot e se o PC "pinga" o PLC. No TIA Portal: Permit PUT/GET e DBs sem acesso otimizado. |
 | **Valor aparece riscado (cinza)** | Qualidade ruim: o PLC não respondeu ou o endereço está errado. Veja o status na aba PLCs. |
 | **Modbus mostra valor estranho em REAL/DINT** | Marque **Inverter words (CDAB)** no cartão do PLC. |
 | **Multímetro mostra "OL"** | Sobrecarga: medida fora da faixa do instrumento. |
-| **Não consigo editar nada** | O projeto está em **produção** (selo verde): clique em **✎ Editar**. Ou seu nível não é Engenharia. |
+| **Não consigo editar nada** | O projeto está em **produção**: no painel, **☰ → Sair da operação** com a senha do administrador. Ou seu nível não é Engenharia. |
 | **O histórico está grande** | Histórico → Configuração: reduza os dias, use limite de tamanho e, na aba Tags, banda e seg. |
 | **Atualizei o programa e quero conferir** | Dois cliques em `testar_ihm.bat`: todos os testes devem passar. |
 
