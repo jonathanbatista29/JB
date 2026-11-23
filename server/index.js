@@ -541,6 +541,21 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
   });
 }
 
+// Porta ocupada (normalmente outro servidor da IHM já aberto): explica em português em vez do erro em inglês.
+server.on('error', (e) => {
+  if (e.code === 'EADDRINUSE') {
+    console.error(`\n  [ERRO] A porta ${PORT} já está em uso.`);
+    console.error('  Provavelmente o servidor da IHM já está rodando em outra janela (ou ficou aberto escondido).');
+    console.error('  Feche a outra janela "JB IHM - servidor" ou finalize o node.exe no Gerenciador de Tarefas.');
+    console.error(`  Ou use outra porta: no iniciar_ihm.bat, troque a linha "set PORT=${PORT}".\n`);
+  } else if (e.code === 'EACCES') {
+    console.error(`\n  [ERRO] Sem permissão para usar a porta ${PORT}. Use outra porta (ex.: 3000 ou 8080).\n`);
+  } else {
+    console.error('\n  [ERRO] Não foi possível iniciar o servidor:', e.message, '\n');
+  }
+  process.exit(2);
+});
+
 server.listen(PORT, HOST, () => {
   console.log(`JB IHM rodando em http://localhost:${PORT}/`);
   for (const p of pm.list()) console.log(`  ${p.name}: http://localhost:${PORT}/${p.slug}/`);

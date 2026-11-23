@@ -55,7 +55,17 @@ if "%PRECISA_INSTALAR%"=="1" (
   )
 )
 
-rem --- 4. Enderecos para abrir em outros PCs, tablets e celulares da rede ---
+rem --- 4. A porta ja esta em uso? (normalmente o servidor antigo continua aberto) ---
+set PID_PORTA=
+for /f %%p in ('powershell -NoProfile -Command "(Get-NetTCPConnection -LocalPort %PORT% -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1).OwningProcess"') do set PID_PORTA=%%p
+if defined PID_PORTA if not "%PID_PORTA%"=="0" (
+  set NOME_PORTA=
+  for /f %%n in ('powershell -NoProfile -Command "(Get-Process -Id %PID_PORTA% -ErrorAction SilentlyContinue).ProcessName"') do set NOME_PORTA=%%n
+  call :porta_ocupada
+  if errorlevel 1 exit /b 1
+)
+
+rem --- 5. Enderecos para abrir em outros PCs, tablets e celulares da rede ---
 echo.
 echo  Neste computador:  http://localhost:%PORT%/
 echo  Na rede, use um destes enderecos:
@@ -68,12 +78,37 @@ echo  Na primeira vez o Windows pode pedir para liberar o Node.js no firewall:
 echo  marque "Redes privadas" e clique em Permitir para os outros paineis acessarem.
 echo.
 
-rem --- 5. Abre o navegador quando o servidor estiver pronto ---
+rem --- 6. Abre o navegador quando o servidor estiver pronto ---
 start "" /min cmd /c "timeout /t 3 /nobreak >nul & start "" http://localhost:%PORT%/"
 
-rem --- 6. Inicia o servidor (fica rodando nesta janela) ---
+rem --- 7. Inicia o servidor (fica rodando nesta janela) ---
 node --disable-warning=ExperimentalWarning server\index.js
 echo.
 echo  O servidor parou. Se apareceu um erro acima, ele explica o motivo
 echo  ^(ex.: a porta %PORT% ja esta em uso por outro programa^).
 pause
+exit /b 0
+
+rem ------------------------------------------------------------
+rem  Porta ocupada: oferece fechar o servidor antigo da IHM (node)
+rem ------------------------------------------------------------
+:porta_ocupada
+echo.
+echo  [AVISO] A porta %PORT% ja esta em uso pelo programa "%NOME_PORTA%" (PID %PID_PORTA%).
+if /i not "%NOME_PORTA%"=="node" (
+  echo          Nao e o servidor da IHM. Feche esse programa ou troque a porta na linha "set PORT=%PORT%".
+  pause
+  exit /b 1
+)
+echo          Provavelmente e o servidor da IHM que ficou aberto em outra janela.
+echo.
+choice /c SN /m "  Fechar o servidor antigo e iniciar este"
+if errorlevel 2 (
+  echo  Nada foi fechado. O servidor antigo continua rodando.
+  pause
+  exit /b 1
+)
+taskkill /PID %PID_PORTA% /F >nul
+timeout /t 2 /nobreak >nul
+echo  Servidor antigo fechado.
+exit /b 0
